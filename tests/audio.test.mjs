@@ -94,6 +94,8 @@ test('each lyric fits its melody and all singers show the same words',async()=>{
   const h=harness();await vm.runInContext("wake('sing')",h.context);
   for(const entry of [...h.pending.values()])if(entry.ms<=155)entry.fn();
   const captions=['blue','yellow','pink'].map(voice=>h.elements.get(voice+'Subtitle').textContent);
+  const firstDegree=melodies[Math.floor(.99*melodies.length)].degrees[0];
+  assert(captions[1].includes(`[ ${minorNote(firstDegree,1).name} — ]`));
   assert(captions.every(c=>c.includes('\n[ ')));
   assert.equal(new Set(captions.map(c=>c.split('\n')[0])).size,1);
 });

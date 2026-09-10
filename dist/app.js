@@ -163,10 +163,11 @@ function perform(kind){
       lastMelody=choice;
       const melody=melodies[choice], beatSeconds=60/(80+Math.random()*40);
       const offsets=[0,2,4], lyric=chooseLyrics(melody.degrees.length);
+      const singers=voices.includes(1)?[1,...voices.filter(voice=>voice!==1)]:voices;
       for(let step=0;step<melody.degrees.length;step++){
         const degree=melody.degrees[step], duration=melody.beats[step]*beatSeconds;
         const d=duration*.88;
-        voices.forEach((voice,part)=>{
+        singers.forEach((voice,part)=>{
           const note=minorNote(degree+offsets[part],voice);
           later(()=>{$(heads[voice].id+'Subtitle').textContent=`${lyric.slice(0,step+1).join(' ')}\n[ ${note.name} — ]`},(t-ctx.currentTime)*1000);
           tone(note.hz,d,t,part,'sawtooth',voice,'sing',level);
