@@ -144,16 +144,16 @@ function perform(kind){
         let cursor=start+part*.055;
         later(()=>{$(heads[voice].id+'Subtitle').textContent='*laughs*'},(cursor-ctx.currentTime)*1000);
         const count=5+Math.floor(Math.random()*6);
-        const beat=.15+Math.random()*.11;
+        const beat=.18+Math.random()*.05;
         const register=(Math.random()-.5)*8, bend=(Math.random()-.5)*10;
         const bounce=Math.random()*3, phase=Math.random()*Math.PI*2;
-        const rhythm=[[1,.65,.65,1.25],[1,1,.55,.55],[1,.8,1.3,.7],[1,.6,.9,1.4]][Math.floor(Math.random()*4)];
+        const rhythm=[[1,.95,.95,1.05],[1,1,.9,.9],[1,.95,1.1,.95],[1,.9,1,1.1]][Math.floor(Math.random()*4)];
         for(let i=0;i<count;i++){
-          const interval=beat*rhythm[i%rhythm.length]*(.9+Math.random()*.2);
-          const d=Math.max(.045,interval*(.62+Math.random()*.18));
+          const interval=beat*rhythm[i%rhythm.length]*(.97+Math.random()*.06);
+          const d=Math.max(.045,interval*(.7+Math.random()*.08));
           const semitones=register+bend*i/(count-1)+Math.sin(i*1.7+phase)*bounce+(Math.random()-.5)*3;
           tone(heads[voice].pitch*1.5*2**(semitones/12),d,cursor,i%2,'square',voice,'laugh',level);
-          cursor+=interval+(i>0&&i<count-1&&Math.random()<.18?.08+Math.random()*.16:0);
+          cursor+=interval+(i>0&&i<count-1&&Math.random()<.06?.04+Math.random()*.04:0);
         }
         t=Math.max(t,cursor);
       });
