@@ -30,9 +30,14 @@ export function ensemble(lead, random = Math.random) {
   if (random() < .5) others.reverse();
   return [lead, ...others.slice(0, count - 1)];
 }
-export function automaticAction(random = Math.random) {
-  const roll = random();
-  return roll < .20 ? 'reaction' : roll < .42 ? 'laugh' : roll < .57 ? 'sing' : 'talk';
+export function automaticAction(random = Math.random, previous = null) {
+  const blocked=previous==='giggle'?['reaction','laugh']:[previous];
+  const choices=[['reaction',20],['laugh',22],['sing',15],['talk',43]]
+    .filter(([kind])=>kind==='talk'||!blocked.includes(kind));
+  const roll=random(),total=choices.reduce((sum,[,weight])=>sum+weight,0);
+  let threshold=0;
+  for(const [kind,weight] of choices){threshold+=weight;if(roll<threshold/total)return kind;}
+  return 'talk';
 }
 export function glidePitch(from, to, time, duration) {
   const fraction = Math.max(0, Math.min(1, time / duration));

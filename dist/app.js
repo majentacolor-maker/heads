@@ -10,6 +10,7 @@ let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
 const previousPitch = [null,null,null];
 let replyQueue=[], lastExchange=-1, exportController=null, closeAt=Infinity, closing=false;
+let lastAction=null,lastSpeaker=-1,lastLead=-1;
 const heads = [
   {id:'blue',pitch:100,lines:[...blueLines]},
   {id:'yellow',pitch:78,lines:['I have already decided.', 'Make room. I am here.', 'Of course I can.', 'Watch closely.', 'I do not ask the room for permission.', 'That was not luck.', 'We will do it my way.', 'I know exactly who I am.', 'Even the silence listens to me.', 'I said what I said.', 'Doubt takes too long.', 'Consider it handled.']},
@@ -170,8 +171,12 @@ function schedule(){
   if(ctx.currentTime>=closeAt){conclude();return}
   const replying=replyQueue.length>0;
   nextTimer=setTimeout(()=>{
-    active=replyQueue.length?replyQueue[0].voice:(active+1)%heads.length;
-    const action=automaticAction();
+    const action=automaticAction(Math.random,lastAction);
+    if(action==='talk'&&replyQueue[0]?.voice===lastSpeaker)replyQueue=[];
+    active=action==='talk'&&replyQueue.length?replyQueue[0].voice:
+      ((action==='talk'?lastSpeaker:lastLead)+1)%heads.length;
+    // A pink giggle is laughter too, so keep it apart from a laugh event.
+    if(action==='reaction'&&active===2&&lastAction==='laugh')active=0;
     perform(action);
   },replying?250+Math.random()*450:1000+Math.random()*1500);
 }
@@ -179,7 +184,7 @@ function finish(duration,token,onComplete){later(()=>{if(token!==run||!awake)ret
 function conclude(){
   if(closing)return;
   closing=true;replyQueue=[];
-  const ending=chooseConclusion();active=ending.voice;
+  const ending=chooseConclusion(Math.random,lastSpeaker);active=ending.voice;
   perform('talk',{text:ending.text,onComplete:()=>{
     later(()=>perform('laugh',{voices:[0,1,2],onComplete:()=>later(finishConversation,800)}),350);
   }});
@@ -194,6 +199,8 @@ async function perform(kind,options={}){
     }
     if(replyQueue.length){const reply=replyQueue.shift();active=reply.voice;spoken=reply.text;}
   }
+  lastAction=kind==='reaction'&&active===2?'giggle':kind;lastLead=active;
+  if(kind==='talk')lastSpeaker=active;
   cancel();const token=run;let t=ctx.currentTime+.04,start=t;const pitch=heads[active].pitch;const lines=heads[active].lines;heads.forEach(h=>$(h.id+'Subtitle').textContent='');
   if(kind==='reaction'){
     if(active===0){
@@ -271,6 +278,7 @@ async function wake(kind='talk'){
     if(token!==run||exportController)return;
     if(!awake){
       cancel();replyQueue=[];lastExchange=-1;lastMelody=-1;
+      lastAction=null;lastSpeaker=-1;lastLead=-1;
       heads.forEach(head=>{head.lastLine=-1;$(head.id+'Subtitle').textContent=''});
       if(kind==='talk')active=0;
       closing=false;closeAt=ctx.currentTime+48+Math.random()*4;awake=true;

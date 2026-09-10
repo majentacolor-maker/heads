@@ -150,8 +150,9 @@ export const conclusions = [
   [2, 'The ending is my favorite part. Bye.'],
   [2, 'Whatever comes next can wait. We are done.']
 ].map(([voice,text])=>({voice,text}));
-export function chooseConclusion(random=Math.random){
-  return conclusions[Math.floor(random()*conclusions.length)];
+export function chooseConclusion(random=Math.random,previousSpeaker=-1){
+  const choices=conclusions.filter(turn=>turn.voice!==previousSpeaker);
+  return choices[Math.floor(random()*choices.length)];
 }
 
 exchanges.push(...surrealExchanges);

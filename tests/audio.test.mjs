@@ -78,6 +78,42 @@ test('automatic choices use 20% reactions, 22% laughter, 15% singing, and 43% sp
   for(let i=0;i<10000;i++)counts[automaticAction(()=>i/10000)]++;
   assert.deepEqual(counts,{reaction:2000,laugh:2200,sing:1500,talk:4300});
 });
+test('automatic actions exclude the previous special action without random retries',()=>{
+  for(const previous of ['reaction','laugh','sing'])for(let i=0;i<1000;i++){
+    assert.notEqual(automaticAction(()=>i/1000,previous),previous);
+  }
+  for(let i=0;i<1000;i++)assert(!['reaction','laugh'].includes(automaticAction(()=>i/1000,'giggle')));
+});
+test('live conversation alternates speakers and separates repeated reactions through its conclusion',async()=>{
+  const h=harness();await vm.runInContext('audio()',h.context);
+  vm.runInContext(`awake=true;closeAt=Infinity;let seed=12345;
+    Math.random=()=>{seed=(Math.imul(seed,1664525)+1013904223)>>>0;return seed/4294967296};
+    tone=()=>{};speakBlue=async()=>{};playBlueSyllable=()=>{};finish=()=>{};
+    globalThis.turns=[];const performTurn=perform;
+    perform=async(kind,options)=>{await performTurn(kind,options);turns.push({kind,voice:active,text:options?.text})};`,h.context);
+  for(let i=0;i<150;i++){
+    vm.runInContext('cancel();schedule()',h.context);
+    assert.equal(h.pending.size,1);
+    [...h.pending.values()][0].fn();
+    await new Promise(resolve=>setImmediate(resolve));
+  }
+  vm.runInContext('cancel();conclude()',h.context);
+  await new Promise(resolve=>setImmediate(resolve));
+  const turns=vm.runInContext('turns',h.context);
+  let previousSpeaker=-1;
+  const laughter=turn=>turn.kind==='laugh'||(turn.kind==='reaction'&&turn.voice===2);
+  for(let i=0;i<turns.length;i++){
+    const turn=turns[i],previous=turns[i-1];
+    if(turn.kind==='talk'){assert.notEqual(turn.voice,previousSpeaker);previousSpeaker=turn.voice;}
+    if(previous){
+      assert(!(laughter(turn)&&laughter(previous)));
+      assert(!(turn.kind==='sing'&&previous.kind==='sing'));
+      assert(!(turn.kind==='reaction'&&previous.kind==='reaction'));
+    }
+  }
+  assert(conclusions.some(ending=>ending.text===turns.at(-1).text));
+  vm.runInContext('sleep()',h.context);
+});
 test('1000 distinct closing lines end silently with WAKE ready for a new conversation',async()=>{
   assert.equal(conclusions.length,1000);
   assert.equal(new Set(conclusions.map(line=>line.text)).size,1000);

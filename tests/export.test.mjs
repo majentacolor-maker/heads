@@ -19,6 +19,7 @@ test('every minute-long export ends with a complete conclusion followed by all t
     assert.deepEqual(finalCaptions.map(c=>c.text),plan.dialogue.map(t=>t.text));
     assert(conclusions.includes(plan.conclusion));
     assert.equal(plan.dialogue.at(-1),plan.conclusion);
+    assert(plan.dialogue.every((turn,index)=>index===0||turn.voice!==plan.dialogue[index-1].voice));
     assert(plan.conclusionAt<plan.laughAt);
     assert(plan.tones.filter(t=>t.kind!=='laugh').every(t=>t.at+t.duration<plan.laughAt));
     const laughter=plan.tones.filter(t=>t.kind==='laugh');

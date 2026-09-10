@@ -30,12 +30,14 @@ export function makeExportPlan(random=Math.random){
     cursor+=.45;
   }
   while(cursor<42){
-    let scene=Math.floor(random()*candidates.length);
-    if(scene===lastScene)scene=(scene+1)%candidates.length;
+    const eligible=candidates.map((turns,index)=>({turns,index})).filter(({turns,index})=>
+      index!==lastScene&&turns[0].voice!==dialogue.at(-1)?.voice&&
+      turns.every((turn,i)=>i===0||turn.voice!==turns[i-1].voice));
+    const scene=eligible[Math.floor(random()*eligible.length)].index;
     lastScene=scene;scenes.push(scene);
     for(const turn of candidates[scene])speak(turn);
   }
-  const conclusion=chooseConclusion(random);speak(conclusion);
+  const conclusion=chooseConclusion(random,dialogue.at(-1)?.voice);speak(conclusion);
   const laughter=pitches.map(pitch=>laughPhrase(pitch,random));
   const laughDuration=Math.max(...laughter.map((phrase,voice)=>voice*.055+phrase.duration));
   const laughAt=EXPORT_DURATION-.8-laughDuration;
