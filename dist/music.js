@@ -1,4 +1,19 @@
 export const minorScale = [0, 2, 3, 5, 7, 8, 10];
+export function vowelCode(text,index=0){
+  const vowels=text.match(/[aeiouy]/gi)??['a'];
+  return vowels[index%vowels.length].toLowerCase().charCodeAt(0);
+}
+export function blueVowelProfile(code){
+  const vowel=code<4?['a','e','i','o'][code]:String.fromCharCode(code).toLowerCase();
+  return ({
+    a:{formant:800,noiseHz:2200,noiseGain:.10},
+    e:{formant:1100,noiseHz:3000,noiseGain:.15},
+    i:{formant:1800,noiseHz:3800,noiseGain:.17},
+    y:{formant:1800,noiseHz:3800,noiseGain:.17},
+    o:{formant:650,noiseHz:1500,noiseGain:.045},
+    u:{formant:450,noiseHz:1100,noiseGain:.025}
+  })[vowel]??{formant:850,noiseHz:2000,noiseGain:.07};
+}
 const noteNames = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 export function minorNote(degree, voice) {
   const step = ((degree % 7) + 7) % 7;

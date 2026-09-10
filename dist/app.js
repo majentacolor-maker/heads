@@ -2,7 +2,7 @@ import { exportVideo, mp4Mime } from './export-video.js';
 import { exchanges, chooseLyrics, singingSyllables, chooseConclusion } from './conversation.js';
 import { newLines } from './dialogue.js';
 import { melodies } from './melodies.js';
-import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter, laughPhrase } from './music.js';
+import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter, laughPhrase, vowelCode, blueVowelProfile } from './music.js';
 const $ = id => document.getElementById(id);
 let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
@@ -39,18 +39,29 @@ function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk
   if(!exportController){later(()=>{ frame.style.backgroundPosition=['scream','sigh','giggle'].includes(kind)?'100% 100%':kind==='laugh'?'100% 0':kind==='sing'?'0 100%':'0 0'; frame.style.opacity='1'; },delay);
   later(()=>{ frame.style.opacity='0'; },delay+duration*1000);}
   if(voice!==0){texture(hz,duration,at,vowel,voice,kind,level,contour);return}
-  const jitter=kind==='scream'?screamJitter(duration):null;
+  const jitter=kind==='scream'?screamJitter(duration):null,shape=blueVowelProfile(vowel);
   for(const [cents,balance] of [[0,1],[7,.7]]){
     const osc=ctx.createOscillator(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
     osc.type=type;osc.detune.value=cents;
     if(jitter){
       for(const point of jitter)osc.frequency.setValueAtTime(point.hz,at+point.at);
     }else{osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);}
-    filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?35:[650,1100,1800,850][vowel%4],at);filter.Q.value=kind==='scream'?.7:3;
+    filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?35:shape.formant,at);filter.Q.value=kind==='scream'?.7:3;
     const volume=level*1.3*balance;
     gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*volume,at+Math.min(.012,duration*.25));gain.gain.linearRampToValueAtTime(.42*volume,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
     osc.connect(filter);filter.connect(gain);trackSource(osc,gain,filter);
     osc.start(at);osc.stop(at+duration+.01);
+  }
+  if(kind==='talk'||kind==='sing'){
+    const breath=ctx.createBufferSource(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
+    const buffer=ctx.createBuffer(1,Math.ceil((duration+.02)*ctx.sampleRate),ctx.sampleRate),samples=buffer.getChannelData(0);
+    for(let i=0;i<samples.length;i++)samples[i]=Math.random()*2-1;
+    breath.buffer=buffer;filter.type='bandpass';filter.frequency.value=shape.noiseHz;filter.Q.value=.8;
+    const volume=shape.noiseGain*level*(kind==='sing'?.7:1);
+    gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(volume,at+Math.min(.02,duration*.25));
+    gain.gain.linearRampToValueAtTime(volume*.65,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
+    breath.connect(filter);filter.connect(gain);trackSource(breath,gain,filter);
+    breath.start(at);breath.stop(at+duration+.02);
   }
 }
 // Yellow decimates both noise and pulse; its clock and bit depth follow pitch.
@@ -158,7 +169,7 @@ function perform(kind,options={}){
     const words=(spoken??lines[i]).split(' ');let text='';
     for(const word of words){const shown=(text+=(text?' ':'')+word);later(()=>{subtitle().textContent=shown},(t-ctx.currentTime)*1000);
       const n=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
-      for(let j=0;j<n;j++)for(const part of speechSyllable(active,pitch)){tone(part.hz,part.duration,t,word.charCodeAt(j%word.length));t+=part.duration+part.gap;}t+=/[.,?]$/.test(word)?.25:.075;
+      for(let j=0;j<n;j++)for(const part of speechSyllable(active,pitch)){tone(part.hz,part.duration,t,active===0?vowelCode(word,j):word.charCodeAt(j%word.length));t+=part.duration+part.gap;}t+=/[.,?]$/.test(word)?.25:.075;
     }
   }else{
     const voices=options.voices??ensemble(active), level=1/Math.sqrt(voices.length);
@@ -187,7 +198,7 @@ function perform(kind,options={}){
             const at=t+index*syllableBeat;
             const words=[...lyric.slice(0,step),syllables.slice(0,index+1).join('')].join(' ');
             later(()=>{$(heads[voice].id+'Subtitle').textContent=`${words}\n[ ${note.name} — ]`},(at-ctx.currentTime)*1000);
-            tone(note.hz,syllableBeat*.88,at,(part+index)%4,'sawtooth',voice,'sing',level);
+            tone(note.hz,syllableBeat*.88,at,voice===0?vowelCode(syllable):(part+index)%4,'sawtooth',voice,'sing',level);
           });
         });
         t+=duration;

@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-import { minorNote, minorScale, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter, laughPhrase } from '../dist/music.js';
+import { minorNote, minorScale, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter, laughPhrase, vowelCode, blueVowelProfile } from '../dist/music.js';
 
 test('ensembles can choose one, two or three distinct heads',()=>{
   for(const lead of [0,1,2])for(const [random,count] of [[.1,1],[.5,2],[.99,3]]){
@@ -31,7 +31,7 @@ function harness(){
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
   const node=()=>({gain:param(),frequency:param(),detune:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,vowelCode,blueVowelProfile,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
     AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
@@ -45,7 +45,7 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
     h.played.length=0;
     await vm.runInContext(`wake('${kind}')`,h.context);
     assert(h.played.length>=15);
-    assert.equal(h.played.filter(e=>e.at===.04).length,kind==='sing'?4:2);
+    assert.equal(h.played.filter(e=>e.at===.04).length,kind==='sing'?5:2);
     // Execute initial subtitle and mouth callbacks only, before any mouth closes.
     for(const entry of h.pending.values())if(entry.ms<=(kind==='sing'?41:155))entry.fn();
     for(const voice of ['blue','yellow','pink']){
@@ -96,13 +96,20 @@ test('interruptions allow a fade before stopping sources',async()=>{
 test('blue uses a synchronized detuned double with independent cleanup',async()=>{
   const h=harness();await vm.runInContext('audio()',h.context);
   vm.runInContext("tone(100,.3,.04,0,'square',0)",h.context);
-  assert.equal(h.played.length,2);
-  assert.deepEqual(h.played.map(event=>event.node.detune.value),[0,7]);
+  assert.equal(h.played.length,3);
+  assert.deepEqual(h.played.filter(event=>!event.node.buffer).map(event=>event.node.detune.value),[0,7]);
   assert(h.played.every(event=>event.at===.04));
   h.played[0].node.onended();
-  assert.equal(vm.runInContext('sources.size',h.context),1);
+  assert.equal(vm.runInContext('sources.size',h.context),2);
   vm.runInContext('sleep()',h.context);
   assert.equal(vm.runInContext('sources.size',h.context),0);
+});
+test('blue breath follows the sung or spoken vowel with quieter rounded vowels',()=>{
+  const bright=blueVowelProfile(vowelCode('see')),rounded=blueVowelProfile(vowelCode('you',2));
+  assert(bright.noiseGain>rounded.noiseGain);
+  assert(bright.noiseHz>rounded.noiseHz);
+  assert.equal(vowelCode('I'),105);
+  assert.equal(vowelCode('rhythm'),121);
 });
 test('pitch glides are continuous, directional, and settle at the destination',()=>{
   for(const [from,to,duration] of [[1600,150,2.8],[92,120,1.6],[220,440,.24]]){
