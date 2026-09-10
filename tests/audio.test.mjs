@@ -176,7 +176,7 @@ test('sung syllables share timing across voices and fit within each melody note'
   vm.runInContext('sleep()',h.context);
 });
 test('linked replies follow their scene speakers and sleep clears the conversation',async()=>{
-  const h=harness();vm.runInContext('replyQueue=exchanges[0].slice()',h.context);
+  const h=harness();await vm.runInContext('audio()',h.context);vm.runInContext('awake=true;replyQueue=exchanges[0].slice()',h.context);
   for(const turn of exchanges[0]){
     await vm.runInContext("wake('talk')",h.context);
     assert.equal(vm.runInContext('active',h.context),turn.voice);
@@ -186,6 +186,38 @@ test('linked replies follow their scene speakers and sleep clears the conversati
   assert.equal(vm.runInContext('replyQueue.length',h.context),0);
   vm.runInContext('replyQueue=exchanges[1].slice();sleep()',h.context);
   assert.equal(vm.runInContext('replyQueue.length',h.context),0);
+});
+
+test('sleep then wake starts a fresh conversation and discards pending speech',async()=>{
+  const h=harness();
+  vm.runInContext('let releaseSpeech;loadBlueSpeech=()=>new Promise(resolve=>releaseSpeech=resolve)',h.context);
+  const oldSpeech=vm.runInContext('wake()',h.context);
+  await new Promise(resolve=>setImmediate(resolve));
+  vm.runInContext(`sleep();ctx.currentTime=100;active=2;lastExchange=12;lastMelody=7;
+    replyQueue=[{voice:1,text:'old reply'}];heads.forEach(head=>head.lastLine=10);
+    loadBlueSpeech=async(text,context)=>context.createBuffer(1,Math.ceil(blueSpeechData[text].duration*22050),22050)`,h.context);
+  await h.elements.get('power').onclick();
+  assert.equal(vm.runInContext('active',h.context),0);
+  assert.equal(vm.runInContext('replyQueue.length',h.context),0);
+  assert.equal(vm.runInContext('lastExchange',h.context),-1);
+  assert.equal(vm.runInContext('lastMelody',h.context),-1);
+  assert.equal(vm.runInContext('heads[2].lastLine',h.context),-1);
+  assert(vm.runInContext('closeAt>=148&&closeAt<=152',h.context));
+  const played=h.played.length,pending=h.pending.size;
+  vm.runInContext('releaseSpeech({})',h.context);await oldSpeech;
+  assert.equal(h.played.length,played);assert.equal(h.pending.size,pending);
+  assert.equal(h.elements.get('power').textContent,'SLEEP');
+  vm.runInContext('sleep()',h.context);
+});
+
+test('sleep while audio resumes cancels the pending wake',async()=>{
+  const h=harness();await vm.runInContext('audio()',h.context);
+  vm.runInContext('let releaseResume;ctx.resume=()=>new Promise(resolve=>releaseResume=resolve)',h.context);
+  const waking=vm.runInContext('wake()',h.context);
+  vm.runInContext('sleep();releaseResume()',h.context);await waking;
+  assert.equal(vm.runInContext('awake',h.context),false);
+  assert.equal(h.played.length,0);assert.equal(h.pending.size,0);
+  assert.equal(h.elements.get('power').textContent,'WAKE');
 });
 
 
