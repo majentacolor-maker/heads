@@ -175,6 +175,8 @@ async function wake(kind='talk'){if(exportController)return;try{await audio();if
 function sleep(){replyQueue=[];awake=false;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
 function toggle(){if(!exportController)awake?sleep():wake()}
 $('power').onclick=toggle;
+$('laugh').onclick=()=>wake('laugh');
+$('sing').onclick=()=>wake('sing');
 document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.target.tagName==='BUTTON')return;if(e.code==='Space'){e.preventDefault();toggle()}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(exportController)exportController.abort();if(awake)sleep()}});
 if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'sleep_head',description:'Stop the head and its audio.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false},execute(input){if(!input||typeof input!=='object'||Object.keys(input).length)throw new Error('Expected an empty object');sleep();return{awake:false}}})).catch(()=>{})}catch{}}
@@ -194,11 +196,11 @@ $('export').onclick=async()=>{
   if(exportController){exportController.abort();return}
   if(!mp4Mime()){$('exportStatus').textContent='MP4 export needs a browser with MP4 recording, such as current Safari or Chrome.';return}
   sleep();exportController=new AbortController();const signal=exportController.signal;
-  $('power').disabled=true;$('export').textContent='CANCEL';$('exportStatus').textContent='Keep this tab open while recording.';
+  for(const id of ['power','laugh','sing'])$(id).disabled=true;$('export').textContent='CANCEL';$('exportStatus').textContent='Keep this tab open while recording.';
   try{
     await audio();
     await exportVideo({context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('export').textContent=`CANCEL ${percent}%`}});
     $('exportStatus').textContent='';
   }catch(error){$('exportStatus').textContent=error.name==='AbortError'?'Export cancelled.':error.message;}
-  finally{sleep();exportController=null;$('power').disabled=false;$('export').textContent='EXPORT MP4';}
+  finally{sleep();exportController=null;for(const id of ['power','laugh','sing'])$(id).disabled=false;$('export').textContent='EXPORT MP4';}
 };

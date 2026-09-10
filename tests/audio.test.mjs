@@ -42,7 +42,7 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
   const h=harness();
   for(const kind of ['sing','laugh']){
     h.played.length=0;
-    await vm.runInContext(`wake('${kind}')`,h.context);
+    await h.elements.get(kind).onclick();
     assert(h.played.length>=15);
     const firstThree=h.played.slice(0,kind==='sing'?3:1);assert(firstThree.every(e=>e.at===.04));
     // Execute initial subtitle and mouth callbacks only, before any mouth closes.
