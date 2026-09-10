@@ -1,3 +1,4 @@
+import { exchanges, chooseLyrics, lyrics } from '../dist/conversation.js';
 import { newLines } from '../dist/dialogue.js';
 import { melodies } from '../dist/melodies.js';
 import test from 'node:test';
@@ -29,7 +30,7 @@ function harness(){
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
   const node=()=>({gain:param(),frequency:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({newLines,melodies,minorNote,decimatorSettings,automaticAction,glidePitch,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+  const context=vm.createContext({newLines,melodies,exchanges,chooseLyrics,minorNote,decimatorSettings,automaticAction,glidePitch,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
     AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
@@ -83,4 +84,25 @@ test('all reactions produce audio with matching subtitles and cancel cleanly',as
     for(const data of h.buffers)assert(data.every(Number.isFinite));
     vm.runInContext('sleep()',h.context);assert.equal(h.pending.size,0);
   }
+});
+
+test('each lyric fits its melody and all singers show the same words',async()=>{
+  for(const [length,phrases] of Object.entries(lyrics))for(const phrase of phrases)assert.equal(phrase.split(' ').length,Number(length));
+  const h=harness();await vm.runInContext("wake('sing')",h.context);
+  for(const entry of [...h.pending.values()])if(entry.ms<=155)entry.fn();
+  const captions=['blue','yellow','pink'].map(voice=>h.elements.get(voice+'Subtitle').textContent);
+  assert(captions.every(c=>c.includes('\n[ ')));
+  assert.equal(new Set(captions.map(c=>c.split('\n')[0])).size,1);
+});
+test('linked replies follow their scene speakers and sleep clears the conversation',async()=>{
+  const h=harness();vm.runInContext('replyQueue=exchanges[0].slice()',h.context);
+  for(const turn of exchanges[0]){
+    await vm.runInContext("wake('talk')",h.context);
+    assert.equal(vm.runInContext('active',h.context),turn.voice);
+    for(const entry of [...h.pending.values()].sort((a,b)=>a.ms-b.ms))entry.fn();
+    assert.equal(h.elements.get(['blue','yellow','pink'][turn.voice]+'Subtitle').textContent,turn.text);
+  }
+  assert.equal(vm.runInContext('replyQueue.length',h.context),0);
+  vm.runInContext('replyQueue=exchanges[1].slice();sleep()',h.context);
+  assert.equal(vm.runInContext('replyQueue.length',h.context),0);
 });

@@ -1,3 +1,4 @@
+import { exchanges, chooseLyrics } from './conversation.js';
 import { newLines } from './dialogue.js';
 import { melodies } from './melodies.js';
 import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch } from './music.js';
@@ -5,6 +6,7 @@ const $ = id => document.getElementById(id);
 let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
 const previousPitch = [null,null,null];
+let replyQueue=[], lastExchange=-1;
 const blueLines = ['Oh. You are here.', 'I was thinking about nothing.', 'There is a small sound inside my head.', 'I have been here the whole time.', 'Do you think the room can hear us?', 'I almost remembered something.', 'That was a thought. It has gone now.', 'I like the space between the notes.', 'This is my face. It does this.', 'Sometimes I count the quiet.', 'One. Two. No, start again.', 'I wonder what blue sounds like.', 'I could stay like this for a while.', 'Something is humming. It might be me.', 'I had a dream about a very small door.', 'Hello again, probably.', 'I am practicing being here.', 'A little noise. For no reason.', 'I do not have anywhere to be.', 'Was that a joke?'];
 const heads = [
   {id:'blue',pitch:100,lines:blueLines},
@@ -84,9 +86,26 @@ function texture(hz,duration,at,vowel,voice,kind,level,contour){
   source.connect(filter);filter.connect(gain);gain.connect(master);sources.add(source);source.onended=()=>{sources.delete(source);source.disconnect();filter.disconnect();gain.disconnect()};source.start(at);source.stop(at+duration+.02);
 }
 function cancel(){previousPitch.fill(null);heads.forEach(h=>$(h.id+'Frames').style.opacity='0');run++;clearTimeout(nextTimer);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sources){try{s.stop()}catch{}}sources.clear();}
-function schedule(){if(awake)nextTimer=setTimeout(()=>{active=(active+1)%heads.length;perform(automaticAction())},1800+Math.random()*2600)}
+function schedule(){
+  if(!awake)return;
+  const replying=replyQueue.length>0;
+  nextTimer=setTimeout(()=>{
+    active=replyQueue.length?replyQueue[0].voice:(active+1)%heads.length;
+    const action=automaticAction();
+    perform(replyQueue.length&&action!=='reaction'?'talk':action);
+  },replying?450+Math.random()*750:1800+Math.random()*2600);
+}
 function finish(duration,token){later(()=>{if(token!==run)return;schedule()},duration*1000+80)}
 function perform(kind){
+  let spoken;
+  if(kind==='talk'){
+    if(!replyQueue.length&&Math.random()<.75){
+      const candidates=exchanges.map((turns,index)=>({turns,index})).filter(x=>x.turns[0].voice===active&&x.index!==lastExchange);
+      const selected=candidates[Math.floor(Math.random()*candidates.length)];
+      replyQueue=selected.turns.slice();lastExchange=selected.index;
+    }
+    if(replyQueue.length){const reply=replyQueue.shift();active=reply.voice;spoken=reply.text;}
+  }
   cancel();const token=run;let t=ctx.currentTime+.04;const start=t;const pitch=heads[active].pitch;const lines=heads[active].lines;heads.forEach(h=>$(h.id+'Subtitle').textContent='');
   if(kind==='reaction'){
     if(active===0){
@@ -104,7 +123,7 @@ function perform(kind){
     }
   }else if(kind==='talk'){
     let i=Math.floor(Math.random()*lines.length);if(i===heads[active].lastLine)i=(i+1)%lines.length;heads[active].lastLine=i;
-    const words=lines[i].split(' ');let text='';
+    const words=(spoken??lines[i]).split(' ');let text='';
     for(const word of words){const shown=(text+=(text?' ':'')+word);later(()=>{subtitle().textContent=shown},(t-ctx.currentTime)*1000);
       const n=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
       for(let j=0;j<n;j++){const d=.065+Math.random()*.075;tone(pitch*(.8+Math.random()*.65),d,t,word.charCodeAt(j%word.length));t+=d+.025}t+=/[.,?]$/.test(word)?.25:.075;
@@ -128,13 +147,13 @@ function perform(kind){
       if(choice===lastMelody)choice=(choice+1)%melodies.length;
       lastMelody=choice;
       const melody=melodies[choice], beatSeconds=60/(80+Math.random()*40);
-      const offsets=[0,2,4];
+      const offsets=[0,2,4], lyric=chooseLyrics(melody.degrees.length);
       for(let step=0;step<melody.degrees.length;step++){
         const degree=melody.degrees[step], duration=melody.beats[step]*beatSeconds;
         const d=duration*.88;
         voices.forEach((voice,part)=>{
           const note=minorNote(degree+offsets[part],voice);
-          later(()=>{$(heads[voice].id+'Subtitle').textContent=`[ ${note.name} — ]`},(t-ctx.currentTime)*1000);
+          later(()=>{$(heads[voice].id+'Subtitle').textContent=`${lyric.slice(0,step+1).join(' ')}\n[ ${note.name} — ]`},(t-ctx.currentTime)*1000);
           tone(note.hz,d,t,part,'sawtooth',voice,'sing',level);
         });
         t+=duration;
@@ -143,8 +162,8 @@ function perform(kind){
   }
   finish(t-start+.04,token);
 }
-async function wake(kind='talk'){try{await audio();if(!awake){awake=true;document.body.classList.add('awake');$('power').textContent='Sleep';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
-function sleep(){awake=false;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='Wake';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
+async function wake(kind='talk'){try{await audio();if(kind!=='talk')replyQueue=[];if(!awake){awake=true;document.body.classList.add('awake');$('power').textContent='Sleep';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
+function sleep(){replyQueue=[];awake=false;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='Wake';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
 function toggle(){awake?sleep():wake()}
 $('power').onclick=toggle;$('laugh').onclick=()=>wake('laugh');$('sing').onclick=()=>wake('sing');
 document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.target.tagName==='BUTTON')return;if(e.code==='Space'){e.preventDefault();toggle()}});
