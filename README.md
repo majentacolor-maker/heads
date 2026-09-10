@@ -2,7 +2,7 @@
 
 Run `npm start`, then open http://127.0.0.1:4173.
 
-Click Wake. The head autonomously speaks scripted thoughts, laughs, and sings using Web Audio oscillators. Subtitles and mouth frames follow playback. No accounts, API keys, recordings, or dependencies.
+Click WAKE. The three heads speak scripted thoughts, laugh, and sing. Around a minute later, one gives a closing statement from 100 options, all three laugh, and playback ends. Subtitles and mouth frames follow playback. No accounts, API keys, recordings, or dependencies.
 
 WAKE starts autonomous playback. SLEEP stops it. Space toggles sleep. Hidden tabs sleep automatically.
 
@@ -18,6 +18,6 @@ Each automatic turn has a 20% chance of a character reaction, 22% laughter, 15% 
 
 Singers share one lyric phrase. Each word’s syllables are articulated and revealed within its note, synchronized across singers. Yellow carries the base melody whenever present. New conversations choose a linked exchange 75% of the time; the rest draw from the existing solo lines. Replies follow the scene's speakers with shorter pauses. Speech remains scripted, without an AI service.
 
-EXPORT MP4 generates complete three-face exchanges in 1280×720, with synthesized audio, mouth animation, and word-by-word captions. It records in real time, runs for 90 seconds, and downloads an MP4. Keep the tab visible; CANCEL or hiding the tab stops recording. Requires browser MP4 MediaRecorder support. Audio is rendered offline before capture; no microphone or server is used.
+EXPORT MP4 generates complete three-face exchanges in 1280×720, with synthesized audio, mouth animation, and word-by-word captions. It ends with a definitive closing statement and all three laughing. It records in real time, runs for about one minute, and downloads an MP4. Keep the tab visible; CANCEL or hiding the tab stops recording. Requires browser MP4 MediaRecorder support. Audio is rendered offline before capture; no microphone or server is used.
 
 Speech gestures are shared by live playback and exports: yellow uses wide low-pitch swings, pink adds rapid repeated syllables, and blue occasionally holds a sound longer.

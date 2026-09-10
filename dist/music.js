@@ -47,3 +47,19 @@ export function screamJitter(duration,random=Math.random){
   points.push({at:duration,hz:50});
   return points;
 }
+
+export function laughPhrase(pitch,random=Math.random){
+  const count=5+Math.floor(random()*6),beat=.18+random()*.05;
+  const register=(random()-.5)*8,bend=(random()-.5)*10;
+  const bounce=random()*3,phase=random()*Math.PI*2;
+  const rhythm=[[1,.95,.95,1.05],[1,1,.9,.9],[1,.95,1.1,.95],[1,.9,1,1.1]][Math.floor(random()*4)];
+  const notes=[];let at=0;
+  for(let i=0;i<count;i++){
+    const interval=beat*rhythm[i%rhythm.length]*(.97+random()*.06);
+    const duration=Math.max(.045,interval*(.7+random()*.08));
+    const semitones=register+bend*i/(count-1)+Math.sin(i*1.7+phase)*bounce+(random()-.5)*3;
+    notes.push({at,duration,hz:pitch*1.5*2**(semitones/12),vowel:i%2});
+    at+=interval+(i>0&&i<count-1&&random()<.06?.04+random()*.04:0);
+  }
+  return {notes,duration:at};
+}

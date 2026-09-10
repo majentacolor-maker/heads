@@ -10,13 +10,17 @@ function surface(){const canvas=document.createElement('canvas');canvas.width=SI
 async function artwork(){
   return Promise.all(fileNames.map(async([still,sprite],voice)=>{
     const [image,sheet]=await Promise.all([loadImage(still),loadImage(sprite)]);
-    const mouth=surface(),pen=mouth.getContext('2d');
-    pen.drawImage(sheet,0,0,sheet.width/2,sheet.height/2,0,0,SIZE,SIZE);
-    pen.globalCompositeOperation='destination-in';
-    const [rx,ry,y]=voice===0?[.28,.18,.79]:voice===1?[.30,.19,.76]:[.27,.18,.73];
-    pen.save();pen.translate(SIZE*.5,SIZE*y);pen.scale(SIZE*rx,SIZE*ry);
-    const mask=pen.createRadialGradient(0,0,.55,0,0,1);mask.addColorStop(0,'#fff');mask.addColorStop(1,'transparent');pen.fillStyle=mask;pen.fillRect(-2,-2,4,4);pen.restore();
-    return {image,mouth};
+    const mouths={};
+    for(const [kind,column] of [['talk',0],['laugh',1]]){
+      const mouth=surface(),pen=mouth.getContext('2d');
+      pen.drawImage(sheet,column*sheet.width/2,0,sheet.width/2,sheet.height/2,0,0,SIZE,SIZE);
+      pen.globalCompositeOperation='destination-in';
+      const [rx,ry,y]=voice===0?[.28,.18,.79]:voice===1?[.30,.19,.76]:[.27,.18,.73];
+      pen.save();pen.translate(SIZE*.5,SIZE*y);pen.scale(SIZE*rx,SIZE*ry);
+      const mask=pen.createRadialGradient(0,0,.55,0,0,1);mask.addColorStop(0,'#fff');mask.addColorStop(1,'transparent');pen.fillStyle=mask;pen.fillRect(-2,-2,4,4);pen.restore();
+      mouths[kind]=mouth;
+    }
+    return {image,mouths};
   }));
 }
 function wrappedLines(pen,text,width){
@@ -26,11 +30,12 @@ function wrappedLines(pen,text,width){
 }
 function draw(pen,art,plan,time){
   pen.fillStyle='#000';pen.fillRect(0,0,WIDTH,HEIGHT);
+  pen.fillStyle='#fff';pen.font='24px Menlo, Monaco, monospace';pen.textAlign='center';pen.textBaseline='top';pen.fillText('HEADS',WIDTH/2,42);
   const state=frameAt(plan,time);
-  for(let voice=0;voice<3;voice++){
-    const x=40+voice*408;
+  for(const [position,voice] of [0,2,1].entries()){
+    const x=40+position*408;
     pen.drawImage(art[voice].image,x,TOP,SIZE,SIZE);
-    if(state.mouths[voice])pen.drawImage(art[voice].mouth,x,TOP);
+    if(state.mouths[voice])pen.drawImage(art[voice].mouths[state.frames[voice]],x,TOP);
     pen.fillStyle='#fff';pen.font='20px Menlo, Monaco, monospace';pen.textAlign='center';pen.textBaseline='top';
     wrappedLines(pen,state.captions[voice],SIZE-20).forEach((line,i)=>pen.fillText(line,x+SIZE/2,TOP+SIZE+26+i*29));
   }
