@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: heads
+    runtime: static
+    buildCommand: npm run check && npm test
+    staticPublishPath: ./dist
+    autoDeployTrigger: commit
