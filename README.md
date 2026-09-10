@@ -11,3 +11,5 @@ Wake starts autonomous playback. Laugh and Sing interrupt it briefly. Space togg
 Check syntax with `npm run check`.
 
 Singing uses C natural minor with random solos, duets, and trios. Laughter can overlap across the same ensembles. Yellow’s sample rate and bit depth rise with vocal pitch.
+
+Dialogue: 120 blue lines, 112 yellow, 112 pink. Melodies: 101 phrases, each 5–8 notes, with stored rhythms and minor-scale harmony.

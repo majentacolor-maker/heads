@@ -1,6 +1,8 @@
+import { newLines } from './dialogue.js';
+import { melodies } from './melodies.js';
 import { minorNote, decimatorSettings, ensemble } from './music.js';
 const $ = id => document.getElementById(id);
-let ctx, master, awake = false, run = 0, nextTimer, lastLine = -1, active = 0;
+let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
 const blueLines = ['Oh. You are here.', 'I was thinking about nothing.', 'There is a small sound inside my head.', 'I have been here the whole time.', 'Do you think the room can hear us?', 'I almost remembered something.', 'That was a thought. It has gone now.', 'I like the space between the notes.', 'This is my face. It does this.', 'Sometimes I count the quiet.', 'One. Two. No, start again.', 'I wonder what blue sounds like.', 'I could stay like this for a while.', 'Something is humming. It might be me.', 'I had a dream about a very small door.', 'Hello again, probably.', 'I am practicing being here.', 'A little noise. For no reason.', 'I do not have anywhere to be.', 'Was that a joke?'];
 const heads = [
@@ -8,6 +10,7 @@ const heads = [
   {id:'yellow',pitch:78,lines:['I have already decided.', 'Make room. I am here.', 'Of course I can.', 'Watch closely.', 'I do not ask the room for permission.', 'That was not luck.', 'We will do it my way.', 'I know exactly who I am.', 'Even the silence listens to me.', 'I said what I said.', 'Doubt takes too long.', 'Consider it handled.']},
   {id:'pink',pitch:205,lines:['Oh. Were you talking?', 'I forgot. It seemed unimportant.', 'Is that a thought? Cute.', 'I would explain, but I lost interest.', 'I thought infinity was a perfume.', 'Whatever. I look lovely.', 'Do I have to know what that means?', 'I was listening to the pretty part.', 'Tomorrow is the one after today, right?', 'That sounds complicated. No, thank you.', 'I had a point. Never mind.', 'Mm. Probably.']}
 ];
+heads.forEach(head=>{head.lines.push(...newLines[head.id]);head.lastLine=-1});
 const subtitle=()=>$(heads[active].id+'Subtitle');
 function later(fn, ms) { const id=setTimeout(()=>{timers.delete(id);fn()},ms);timers.add(id);return id }
 async function audio() {
@@ -68,7 +71,7 @@ function finish(duration,token){later(()=>{if(token!==run)return;schedule()},dur
 function perform(kind){
   cancel();const token=run;let t=ctx.currentTime+.04;const start=t;const pitch=heads[active].pitch;const lines=heads[active].lines;heads.forEach(h=>$(h.id+'Subtitle').textContent='');
   if(kind==='talk'){
-    let i=Math.floor(Math.random()*lines.length);if(i===lastLine)i=(i+1)%lines.length;lastLine=i;
+    let i=Math.floor(Math.random()*lines.length);if(i===heads[active].lastLine)i=(i+1)%lines.length;heads[active].lastLine=i;
     const words=lines[i].split(' ');let text='';
     for(const word of words){const shown=(text+=(text?' ':'')+word);later(()=>{subtitle().textContent=shown},(t-ctx.currentTime)*1000);
       const n=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
@@ -89,16 +92,20 @@ function perform(kind){
         t=Math.max(t,cursor);
       });
     }else{
-      const melody=[0,2,4,3,1,0];
+      let choice=Math.floor(Math.random()*melodies.length);
+      if(choice===lastMelody)choice=(choice+1)%melodies.length;
+      lastMelody=choice;
+      const melody=melodies[choice], beatSeconds=60/(80+Math.random()*40);
       const offsets=[0,2,4];
-      for(const degree of melody){
-        const d=.42+Math.random()*.22;
+      for(let step=0;step<melody.degrees.length;step++){
+        const degree=melody.degrees[step], duration=melody.beats[step]*beatSeconds;
+        const d=duration*.88;
         voices.forEach((voice,part)=>{
           const note=minorNote(degree+offsets[part],voice);
           later(()=>{$(heads[voice].id+'Subtitle').textContent=`[ ${note.name} — ]`},(t-ctx.currentTime)*1000);
           tone(note.hz,d,t,part,'sawtooth',voice,'sing',level);
         });
-        t+=d+.065;
+        t+=duration;
       }
     }
   }
