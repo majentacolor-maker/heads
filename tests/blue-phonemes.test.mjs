@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {speechWalk,speechTime,singPhonemes} from '../dist/blue-phonemes.js';
+import {speechWalk,speechTime,singPhonemes,pronunciationMistakes,mispronounceSpeech} from '../dist/blue-phonemes.js';
 import {blueSingingData} from '../dist/blue-singing-data.js';
 import {lyrics,singingSyllables,exchanges,conclusions} from '../dist/conversation.js';
 import {blueLines,newLines} from '../dist/dialogue.js';
@@ -67,4 +67,20 @@ test('vowel retuning changes pitch without changing the note length',()=>{
     }
     assert(Math.abs(rate/lagBest-hz)/hz<.015);assert(best>.97);assert.equal(output.length,Math.round(rate*.8));
   }
+});
+
+
+test('pronunciation mistakes soften consonants and borrow different vowels without changing timing',()=>{
+  const phones=[{ipa:'s',start:0,end:.2,vowel:false},{ipa:'a',start:.2,end:.5,vowel:true},{ipa:'i',start:.5,end:1,vowel:true}];
+  assert.deepEqual(pronunciationMistakes(phones,phones,()=>.99),phones);
+  const changed=pronunciationMistakes(phones,phones,()=>0);
+  assert.equal(changed[0].level,.2);assert.equal(changed[1].ipa,'i');assert.equal(changed[2].ipa,'a');
+  const source=Float32Array.from({length:1000},(_,i)=>.5*Math.sin(i*(i<500?.21:.37))),before=source.slice();
+  const output=mispronounceSpeech(source,1000,phones,()=>0);
+  assert.equal(output.length,source.length);assert.deepEqual(source,before);
+  assert(output.every(value=>Number.isFinite(value)&&Math.abs(value)<=.5));
+  assert.equal(output[0],source[0]);assert.equal(output.at(-1),source.at(-1));
+  assert(Math.abs(output[100]-source[100]*.2)<1e-6);assert.notEqual(output[350],source[350]);
+  const choices=Array.from({length:1000},(_,i)=>pronunciationMistakes(phones,phones,()=>i/1000)[0]);
+  assert.equal(choices.filter(phone=>phone.level!==undefined).length,125);
 });

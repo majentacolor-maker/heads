@@ -35,8 +35,8 @@ function draw(pen,art,plan,time){
     const x=40+position*408;
     pen.drawImage(art[voice].image,x,TOP,SIZE,SIZE);
     if(state.mouths[voice])pen.drawImage(art[voice].mouths[state.frames[voice]],x,TOP);
-    pen.fillStyle='#fff';pen.font='20px Menlo, Monaco, monospace';pen.textAlign='center';pen.textBaseline='top';
-    wrappedLines(pen,state.captions[voice],SIZE-20).forEach((line,i)=>pen.fillText(line,x+SIZE/2,TOP+SIZE+26+i*29));
+    pen.fillStyle='#fff';pen.font='16px Menlo, Monaco, monospace';pen.textAlign='center';pen.textBaseline='top';
+    wrappedLines(pen,state.captions[voice],SIZE-20).forEach((line,i)=>pen.fillText(line,x+SIZE/2,TOP+SIZE+26+i*23));
   }
 }
 export async function exportVideo({context,renderAudio,stop,signal,onProgress}){

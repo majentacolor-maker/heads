@@ -1,6 +1,6 @@
 import { exportVideo, mp4Mime } from './export-video.js';
 import {blueSpeechData,loadBlueSpeech,blueSingingData,loadBlueSinging} from './blue-speech.js';
-import {speechWalk,speechTime,singPhonemes} from './blue-phonemes.js';
+import {speechWalk,speechTime,singPhonemes,pronunciationMistakes,mispronounceSpeech} from './blue-phonemes.js';
 import { exchanges, chooseLyrics, singingSyllables, chooseConclusion } from './conversation.js';
 import { newLines, blueLines } from './dialogue.js';
 import { melodies } from './melodies.js';
@@ -46,13 +46,20 @@ function playBlueSpeech(buffer,at,duration,walk=speechWalk(duration),level=1){
     source.connect(gain);trackSource(source,gain);source.start(at);source.stop(at+duration+.01);
   }
 }
+function imperfectSpeech(buffer,info){
+  const scale=buffer.duration/info.duration;
+  const phonemes=info.phonemes.map(phone=>({...phone,start:phone.start*scale,end:phone.end*scale}));
+  const samples=mispronounceSpeech(buffer.getChannelData(0),buffer.sampleRate,phonemes);
+  const altered=ctx.createBuffer(1,samples.length,buffer.sampleRate);altered.getChannelData(0).set(samples);
+  return altered;
+}
 async function speakBlue(text,token,onComplete){
   try{
     const info=blueSpeechData[text],buffer=await loadBlueSpeech(text,ctx);
     if(token!==run||!awake||exportController)return;
     const at=ctx.currentTime+.04,frame=$('blueFrames');
     const walk=speechWalk(info.duration);
-    playBlueSpeech(buffer,at,info.duration,walk);
+    playBlueSpeech(imperfectSpeech(buffer,info),at,info.duration,walk);
     for(const word of info.words)later(()=>{$('blueSubtitle').textContent=word.text},(at-ctx.currentTime+speechTime(walk,word.at))*1000);
     for(const [start,end] of info.activity){
       later(()=>{frame.style.backgroundPosition='0 0';frame.style.opacity='1'},(at-ctx.currentTime+speechTime(walk,start))*1000);
@@ -61,8 +68,8 @@ async function speakBlue(text,token,onComplete){
     finish(info.duration+.04,token,onComplete);
   }catch(error){if(token===run){sleep();$('blueSubtitle').textContent=error.message;}}
 }
-function playBlueSyllable(buffer,phonemes,hz,duration,at,level){
-  const samples=singPhonemes(buffer.getChannelData(0),buffer.sampleRate,phonemes,hz,duration);
+function playBlueSyllable(buffer,phonemes,hz,duration,at,level,donors){
+  const samples=singPhonemes(buffer.getChannelData(0),buffer.sampleRate,pronunciationMistakes(phonemes,donors),hz,duration);
   const sung=ctx.createBuffer(1,samples.length,buffer.sampleRate);sung.getChannelData(0).set(samples);
   playBlueSpeech(sung,at,duration,null,level);
   const frame=$('blueFrames'),delay=(at-ctx.currentTime)*1000;
@@ -236,6 +243,7 @@ async function perform(kind,options={}){
         if(token!==run||!awake||exportController)return;
         t=start=ctx.currentTime+.04;
       }
+      const donors=[...sungWords].flatMap(([word,buffer])=>blueSingingData[word.toLowerCase()].syllables.flat().map(phone=>({...phone,source:buffer.getChannelData(0)})));
       for(let step=0;step<melody.degrees.length;step++){
         const degree=melody.degrees[step], duration=melody.beats[step]*beatSeconds;
         const syllables=singingSyllables(lyric[step]), syllableBeat=duration/syllables.length;
@@ -245,7 +253,7 @@ async function perform(kind,options={}){
             const at=t+index*syllableBeat;
             const words=[...lyric.slice(0,step),syllables.slice(0,index+1).join('')].join(' ');
             later(()=>{$(heads[voice].id+'Subtitle').textContent=`${words}\n[ ${note.name} — ]`},(at-ctx.currentTime)*1000);
-            if(voice===0)playBlueSyllable(sungWords.get(lyric[step]),blueSingingData[lyric[step].toLowerCase()].syllables[index],note.hz,syllableBeat*.88,at,level);
+            if(voice===0)playBlueSyllable(sungWords.get(lyric[step]),blueSingingData[lyric[step].toLowerCase()].syllables[index],note.hz,syllableBeat*.88,at,level,donors);
             else tone(note.hz,syllableBeat*.88,at,(part+index)%4,'sawtooth',voice,'sing',level);
           });
         });
@@ -276,7 +284,7 @@ async function renderExportAudio(plan){
     const limiter=offline.createDynamicsCompressor();master.connect(limiter);limiter.connect(offline.destination);
     previousPitch.fill(null);
     for(const event of plan.tones){
-      if(event.kind==='speech')playBlueSpeech(speech.get(event.text),event.at,event.duration,event.walk);
+      if(event.kind==='speech')playBlueSpeech(imperfectSpeech(speech.get(event.text),blueSpeechData[event.text]),event.at,event.duration,event.walk);
       else tone(event.hz,event.duration,event.at,event.vowel,'square',event.voice,event.kind??'talk',event.level??1);
     }
   }finally{ctx=liveContext;master=liveMaster;}

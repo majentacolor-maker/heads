@@ -10,7 +10,7 @@ WAKE starts autonomous playback. SLEEP stops it. Space toggles sleep. Hidden tab
 
 Check with `npm run check && npm test`.
 
-Blue speaks recognizable words using [eSpeak NG](https://github.com/espeak-ng/espeak-ng) formant synthesis and a slightly detuned double. Its pitch follows a bounded random walk; word timings and mouth movements follow the same curve. Sung lyrics use phoneme-aligned consonant samples and vowels retuned to each melody note. Regenerate sung pronunciations with `npm run singing`. Speech clips are bundled; regenerate after dialogue changes with `npm ci && npm run voices` (requires FFmpeg). The build tool is `@echogarden/espeak-ng-emscripten` (GPL-3.0); the browser loads only generated audio.
+Blue speaks recognizable words using [eSpeak NG](https://github.com/espeak-ng/espeak-ng) formant synthesis and a slightly detuned double. Its pitch follows a bounded random walk; word timings and mouth movements follow the same curve. Speech and singing give each phoneme a 12.5% chance of a softened consonant or a borrowed vowel. Timing and sung pitches stay intact. Sung lyrics use phoneme-aligned consonant samples and vowels retuned to each melody note. Regenerate sung pronunciations with `npm run singing`. Speech clips are bundled; regenerate after dialogue changes with `npm ci && npm run voices` (requires FFmpeg). The build tool is `@echogarden/espeak-ng-emscripten` (GPL-3.0); the browser loads only generated audio.
 
 Singing uses C natural minor with random solos, duets, and trios. Laughter can overlap across the same ensembles. Yellow’s sample rate and bit depth rise with vocal pitch.
 

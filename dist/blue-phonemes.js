@@ -29,6 +29,37 @@ export function speechTime(walk,sourceTime){
   return walk.duration;
 }
 
+export function pronunciationMistakes(phonemes,donors=phonemes,random=Math.random){
+  const sound=ipa=>ipa.replace(/[ˈˌː]/g,'');
+  return phonemes.map(phoneme=>{
+    if(random()>=.125)return phoneme;
+    if(!phoneme.vowel)return{...phoneme,level:.2+random()*.25};
+    const choices=donors.filter(other=>other.vowel&&sound(other.ipa)!==sound(phoneme.ipa));
+    if(!choices.length)return phoneme;
+    return{...choices[Math.floor(random()*choices.length)],replaces:phoneme};
+  });
+}
+
+export function mispronounceSpeech(source,rate,phonemes,random=Math.random){
+  const output=source.slice(),changed=pronunciationMistakes(phonemes,phonemes,random);
+  changed.forEach((phone,index)=>{
+    if(phone===phonemes[index])return;
+    const target=phonemes[index],start=Math.round(target.start*rate),end=Math.min(source.length,Math.round(target.end*rate));
+    const from=phone.start*rate,span=(phone.end-phone.start)*rate;
+    const fade=Math.max(1,Math.min(rate*.005,(end-start)/3));
+    for(let i=start;i<end;i++){
+      const blend=Math.min(1,(i-start)/fade,(end-1-i)/fade);
+      let altered=source[i]*(phone.level??1);
+      if(phone.replaces){
+        const position=from+(i-start)/Math.max(1,end-start)*span,a=Math.floor(position),fraction=position-a;
+        altered=(source[a]??0)*(1-fraction)+(source[a+1]??0)*fraction;
+      }
+      output[i]=source[i]*(1-blend)+altered*blend;
+    }
+  });
+  return output;
+}
+
 // Pitch-synchronous overlap-add preserves recorded vowel formants at a sung pitch.
 // Consonants use their actual speech samples; vowel time expands to fit the note.
 export function singPhonemes(source,rate,phonemes,hz,duration){
@@ -39,9 +70,10 @@ export function singPhonemes(source,rate,phonemes,hz,duration){
   const consonantBudget=vowels.length?Math.min(consonantTime,duration*.48):duration;
   let cursor=0;
   phonemes.forEach((phoneme,index)=>{
+    const samples=phoneme.source??source;
     const share=phoneme.vowel?(duration-consonantBudget)*(phoneme.end-phoneme.start)/vowelTime:consonantBudget*(phoneme.end-phoneme.start)/consonantTime;
     const count=index===phonemes.length-1?length-cursor:Math.min(length-cursor,Math.round(share*rate));
-    const start=Math.round(phoneme.start*rate),end=Math.min(source.length,Math.round(phoneme.end*rate));
+    const start=Math.round(phoneme.start*rate),end=Math.min(samples.length,Math.round(phoneme.end*rate));
     const segment=new Float32Array(Math.max(0,count));
     if(phoneme.period&&phoneme.marks?.length){
       const period=phoneme.period,hop=rate/hz,marks=phoneme.marks;let mark=0;
@@ -50,17 +82,17 @@ export function singPhonemes(source,rate,phonemes,hz,duration){
         while(mark+1<marks.length&&Math.abs(marks[mark+1]-target)<Math.abs(marks[mark]-target))mark++;
         for(let offset=-period;offset<=period;offset++){
           const to=Math.round(center+offset),from=marks[mark]+offset;
-          if(to>=0&&to<count&&from>=start&&from<end)segment[to]+=source[from]*(.5+.5*Math.cos(Math.PI*offset/period))*Math.min(1,hop/period);
+          if(to>=0&&to<count&&from>=start&&from<end)segment[to]+=samples[from]*(.5+.5*Math.cos(Math.PI*offset/period))*Math.min(1,hop/period);
         }
       }
     }else{
       for(let i=0;i<count;i++){
         const position=start+i/Math.max(1,count)*(end-start-1),a=Math.floor(position),fraction=position-a;
-        segment[i]=(source[a]??0)*(1-fraction)+(source[a+1]??0)*fraction;
+        segment[i]=(samples[a]??0)*(1-fraction)+(samples[a+1]??0)*fraction;
       }
     }
     const fade=Math.min(Math.round(rate*.003),count/3);
-    for(let i=0;i<count;i++)output[cursor+i]=segment[i]*Math.min(1,i/Math.max(1,fade),(count-1-i)/Math.max(1,fade));
+    for(let i=0;i<count;i++)output[cursor+i]=segment[i]*(phoneme.level??1)*Math.min(1,i/Math.max(1,fade),(count-1-i)/Math.max(1,fade));
     cursor+=count;
   });
   let peak=0;for(const sample of output)peak=Math.max(peak,Math.abs(sample));
