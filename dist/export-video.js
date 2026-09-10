@@ -45,7 +45,7 @@ export async function exportVideo({context,renderAudio,stop,signal,onProgress}){
   const canvas=document.createElement('canvas');canvas.width=WIDTH;canvas.height=HEIGHT;
   const pen=canvas.getContext('2d');draw(pen,art,plan,0);
   const video=canvas.captureStream(30),audio=context.createMediaStreamDestination();
-  let recorder,animation,watchdog,playback,tracks=[],error;
+  let recorder,animation,watchdog,playback,playbackGain,tracks=[],error;
   const chunks=[];
   try{
 
@@ -62,7 +62,7 @@ export async function exportVideo({context,renderAudio,stop,signal,onProgress}){
     try{
       recorder.start(1000);
       const base=context.currentTime;
-      playback=context.createBufferSource();playback.buffer=sound;playback.connect(audio);playback.connect(context.destination);playback.onended=()=>{if(recorder.state!=='inactive')recorder.stop()};playback.start(base);
+      playback=context.createBufferSource();playback.buffer=sound;playbackGain=context.createGain();playback.connect(playbackGain);playbackGain.connect(audio);playbackGain.connect(context.destination);playback.onended=()=>{if(recorder.state!=='inactive')recorder.stop()};playback.start(base);
       const tick=()=>{
         const elapsed=Math.max(0,context.currentTime-base);
         draw(pen,art,plan,elapsed);onProgress(Math.min(99,Math.floor(elapsed/plan.duration*100)));
@@ -79,7 +79,11 @@ export async function exportVideo({context,renderAudio,stop,signal,onProgress}){
   }finally{
     cancelAnimationFrame(animation);clearTimeout(watchdog);
     if(recorder&&recorder.state!=='inactive')recorder.stop();
-    if(playback){try{playback.stop()}catch{}playback.disconnect();}
+    if(playback){
+      if(playbackGain){playbackGain.gain.setValueAtTime(playbackGain.gain.value,context.currentTime);playbackGain.gain.linearRampToValueAtTime(0,context.currentTime+.015);}
+      try{playback.stop(context.currentTime+.02)}catch{}
+      await new Promise(resolve=>setTimeout(resolve,25));playback.disconnect();playbackGain?.disconnect();
+    }
     for(const track of tracks)track.stop();
     for(const track of video.getTracks())track.stop();
     stop();

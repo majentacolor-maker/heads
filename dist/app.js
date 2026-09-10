@@ -1,5 +1,5 @@
 import { exportVideo, mp4Mime } from './export-video.js';
-import { exchanges, chooseLyrics } from './conversation.js';
+import { exchanges, chooseLyrics, singingSyllables } from './conversation.js';
 import { newLines } from './dialogue.js';
 import { melodies } from './melodies.js';
 import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter } from './music.js';
@@ -21,6 +21,16 @@ async function audio() {
   if(!ctx){ctx=new AudioContext();master=ctx.createGain();master.gain.value=.1575;const limiter=ctx.createDynamicsCompressor();master.connect(limiter);limiter.connect(ctx.destination)}
   await ctx.resume();
 }
+function trackSource(source,envelope,filter){
+  const gate=ctx.createGain(),sourceContext=ctx;
+  envelope.connect(gate);gate.connect(master);sources.add(source);
+  source.fadeOut=()=>{
+    const now=sourceContext.currentTime;
+    gate.gain.cancelScheduledValues(now);gate.gain.setValueAtTime(gate.gain.value,now);
+    gate.gain.linearRampToValueAtTime(0,now+.015);source.stop(now+.02);
+  };
+  source.onended=()=>{sources.delete(source);source.disconnect();filter?.disconnect();envelope.disconnect();gate.disconnect()};
+}
 function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk', level=1, contour) {
   if(voice===2&&!contour)contour={from:previousPitch[voice]??hz*.8,to:hz,seconds:Math.min(.24,duration*.6)};
   previousPitch[voice]=hz;
@@ -35,9 +45,9 @@ function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk
     for(const point of screamJitter(duration))osc.frequency.setValueAtTime(point.hz,at+point.at);
   }else{osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);}
   filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?35:[650,1100,1800,850][vowel%4],at);filter.Q.value=kind==='scream'?.7:3;
-  gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*level,at+Math.min(.009,duration*.2));gain.gain.setValueAtTime(.42*level,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
-  osc.connect(filter);filter.connect(gain);gain.connect(master);sources.add(osc);
-  osc.onended=()=>{sources.delete(osc);osc.disconnect();filter.disconnect();gain.disconnect()};osc.start(at);osc.stop(at+duration+.01);
+  gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*level,at+Math.min(.012,duration*.25));gain.gain.linearRampToValueAtTime(.42*level,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
+  osc.connect(filter);filter.connect(gain);trackSource(osc,gain,filter);
+  osc.start(at);osc.stop(at+duration+.01);
 }
 // Yellow decimates both noise and pulse; its clock and bit depth follow pitch.
 function texture(hz,duration,at,vowel,voice,kind,level,contour){
@@ -87,14 +97,14 @@ function texture(hz,duration,at,vowel,voice,kind,level,contour){
     gain.gain.linearRampToValueAtTime(.45*level,at+.18);
     gain.gain.exponentialRampToValueAtTime(.018*level,at+duration-.05);
   }else{
-    gain.gain.linearRampToValueAtTime((voice===1?.42:1.1)*level,at+Math.min(.008,duration*.2));
-    gain.gain.setValueAtTime((voice===1?.34:.9)*level,at+duration*.7);
+    gain.gain.linearRampToValueAtTime((voice===1?.42:1.1)*level,at+Math.min(.012,duration*.25));
+    gain.gain.linearRampToValueAtTime((voice===1?.34:.9)*level,at+duration*.7);
   }
   gain.gain.linearRampToValueAtTime(0,at+duration);
   if(filter){source.connect(filter);filter.connect(gain)}else source.connect(gain);
-  gain.connect(master);sources.add(source);source.onended=()=>{sources.delete(source);source.disconnect();filter?.disconnect();gain.disconnect()};source.start(at);source.stop(at+duration+.02);
+  trackSource(source,gain,filter);source.start(at);source.stop(at+duration+.02);
 }
-function cancel(){previousPitch.fill(null);heads.forEach(h=>$(h.id+'Frames').style.opacity='0');run++;clearTimeout(nextTimer);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sources){try{s.stop()}catch{}}sources.clear();}
+function cancel(){previousPitch.fill(null);heads.forEach(h=>$(h.id+'Frames').style.opacity='0');run++;clearTimeout(nextTimer);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sources){try{s.fadeOut()}catch{}}sources.clear();}
 function schedule(){
   if(!awake)return;
   const replying=replyQueue.length>0;
@@ -166,11 +176,15 @@ function perform(kind){
       const singers=voices.includes(1)?[1,...voices.filter(voice=>voice!==1)]:voices;
       for(let step=0;step<melody.degrees.length;step++){
         const degree=melody.degrees[step], duration=melody.beats[step]*beatSeconds;
-        const d=duration*.88;
+        const syllables=singingSyllables(lyric[step]), syllableBeat=duration/syllables.length;
         singers.forEach((voice,part)=>{
           const note=minorNote(degree+offsets[part],voice);
-          later(()=>{$(heads[voice].id+'Subtitle').textContent=`${lyric.slice(0,step+1).join(' ')}\n[ ${note.name} — ]`},(t-ctx.currentTime)*1000);
-          tone(note.hz,d,t,part,'sawtooth',voice,'sing',level);
+          syllables.forEach((syllable,index)=>{
+            const at=t+index*syllableBeat;
+            const words=[...lyric.slice(0,step),syllables.slice(0,index+1).join('')].join(' ');
+            later(()=>{$(heads[voice].id+'Subtitle').textContent=`${words}\n[ ${note.name} — ]`},(at-ctx.currentTime)*1000);
+            tone(note.hz,syllableBeat*.88,at,(part+index)%4,'sawtooth',voice,'sing',level);
+          });
         });
         t+=duration;
       }

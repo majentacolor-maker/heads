@@ -31,3 +31,18 @@ export function chooseLyrics(length, random=Math.random){
   if(!choices)throw new Error('Unsupported melody length');
   return choices[Math.floor(random()*choices.length)].split(' ');
 }
+
+// Explicit pronunciation for the lyric bank keeps silent vowels from adding beats.
+const sungWords=Object.fromEntries([
+  'to-geth-er','noth-ing','lit-tle','un-til','si-lence','shad-ows','a-long',
+  'lis-ten-ing','mo-ment','ver-y','gen-tly','some-thing','beau-ti-ful',
+  'be-tween','may-be','be-longs','cur-rent','com-ing','no-where','un-der',
+  're-mem-ber','e-ven','mu-sic','sing-ing','voi-ces','in-side','no-bod-y',
+  'an-y-way','scat-tered','pie-ces','sof-tens','col-ors','learn-ing','be-ing','e-nough'
+].map(word=>[word.replaceAll('-',''),word.split('-')]));
+export function singingSyllables(word){
+  const parts=sungWords[word.toLowerCase()];
+  if(!parts)return [word];
+  let offset=0;
+  return parts.map(part=>{const text=word.slice(offset,offset+part.length);offset+=part.length;return text});
+}

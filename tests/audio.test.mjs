@@ -1,4 +1,4 @@
-import { exchanges, chooseLyrics, lyrics } from '../dist/conversation.js';
+import { exchanges, chooseLyrics, singingSyllables, lyrics } from '../dist/conversation.js';
 import { newLines } from '../dist/dialogue.js';
 import { melodies } from '../dist/melodies.js';
 import test from 'node:test';
@@ -31,7 +31,7 @@ function harness(){
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
   const node=()=>({gain:param(),frequency:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,singingSyllables,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
     AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
@@ -45,9 +45,9 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
     h.played.length=0;
     await h.elements.get(kind).onclick();
     assert(h.played.length>=15);
-    const firstThree=h.played.slice(0,kind==='sing'?3:1);assert(firstThree.every(e=>e.at===.04));
+    assert.equal(h.played.filter(e=>e.at===.04).length,kind==='sing'?3:1);
     // Execute initial subtitle and mouth callbacks only, before any mouth closes.
-    for(const entry of h.pending.values())if(entry.ms<=155)entry.fn();
+    for(const entry of h.pending.values())if(entry.ms<=(kind==='sing'?41:155))entry.fn();
     for(const voice of ['blue','yellow','pink']){
       assert.equal(h.elements.get(voice+'Frames').style.opacity,'1');
       assert.equal(h.elements.get(voice+'Frames').style.backgroundPosition,kind==='sing'?'0 100%':'100% 0');
@@ -64,6 +64,13 @@ test('automatic choices use 20% reactions, 22% laughter, 15% singing, and 43% sp
   const counts={reaction:0,laugh:0,sing:0,talk:0};
   for(let i=0;i<10000;i++)counts[automaticAction(()=>i/10000)]++;
   assert.deepEqual(counts,{reaction:2000,laugh:2200,sing:1500,talk:4300});
+});
+test('interruptions allow a fade before stopping sources',async()=>{
+  const h=harness();await h.elements.get('laugh').onclick();
+  vm.runInContext('globalThis.stopTimes=[];for(const source of sources)source.stop=at=>stopTimes.push(at);sleep()',h.context);
+  const times=vm.runInContext('stopTimes',h.context);
+  assert(times.length>0);assert(times.every(at=>at===.02));
+  assert.equal(h.pending.size,0);
 });
 test('pitch glides are continuous, directional, and settle at the destination',()=>{
   for(const [from,to,duration] of [[1600,150,2.8],[92,120,1.6],[220,440,.24]]){
@@ -98,6 +105,23 @@ test('each lyric fits its melody and all singers show the same words',async()=>{
   assert(captions[1].includes(`[ ${minorNote(firstDegree,1).name} — ]`));
   assert(captions.every(c=>c.includes('\n[ ')));
   assert.equal(new Set(captions.map(c=>c.split('\n')[0])).size,1);
+});
+test('sung syllables share timing across voices and fit within each melody note',async()=>{
+  assert.deepEqual(singingSyllables('Beautiful'),['Beau','ti','ful']);
+  assert.equal(singingSyllables('silence').length,2);
+  assert.equal(singingSyllables('lights').length,1);
+  const h=harness();
+  vm.runInContext("chooseLyrics=length=>Array(length).fill('beautiful');globalThis.sung=[];tone=(hz,duration,at,vowel,type,voice)=>sung.push({hz,duration,at,voice})",h.context);
+  await h.elements.get('sing').onclick();
+  const notes=vm.runInContext('sung',h.context), melody=melodies[Math.floor(.99*melodies.length)];
+  assert.equal(notes.length,melody.degrees.length*3*3);
+  const first=notes.slice(0,9), beat=melody.beats[0]*60/(80+.99*40);
+  for(let syllable=0;syllable<3;syllable++){
+    const group=first.filter((_,index)=>index%3===syllable);
+    assert(group.every(note=>Math.abs(note.at-(.04+syllable*beat/3))<1e-9));
+    assert(group.every(note=>note.at+note.duration<=.04+beat));
+  }
+  vm.runInContext('sleep()',h.context);
 });
 test('linked replies follow their scene speakers and sleep clears the conversation',async()=>{
   const h=harness();vm.runInContext('replyQueue=exchanges[0].slice()',h.context);
