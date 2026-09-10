@@ -190,7 +190,7 @@ $('export').onclick=async()=>{
   try{
     await audio();
     await exportVideo({context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('export').textContent=`CANCEL ${percent}%`}});
-    $('exportStatus').textContent='MP4 ready.';
+    $('exportStatus').textContent='';
   }catch(error){$('exportStatus').textContent=error.name==='AbortError'?'Export cancelled.':error.message;}
   finally{sleep();exportController=null;$('power').disabled=false;$('export').textContent='EXPORT MP4';}
 };

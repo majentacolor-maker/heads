@@ -1,26 +1,34 @@
 import { exchanges } from './conversation.js';
+export const EXPORT_DURATION=90;
 export function makeExportPlan(random=Math.random){
   const candidates=exchanges.filter(turns=>new Set(turns.map(turn=>turn.voice)).size===3);
-  const dialogue=candidates[Math.floor(random()*candidates.length)];
-  const tones=[], captions=[], pitches=[100,78,205];let cursor=.7;
-  for(const {voice,text} of dialogue){
-    let caption='';
-    for(const word of text.split(' ')){
-      caption+=(caption?' ':'')+word;
-      captions.push({at:cursor,voice,text:caption});
-      const count=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
-      for(let j=0;j<count;j++){
-        const duration=.065+random()*.075;
-        tones.push({at:cursor,voice,hz:pitches[voice]*(.8+random()*.65),duration,vowel:word.charCodeAt(j%word.length)});
-        cursor+=duration+.025;
+  const tones=[], captions=[], dialogue=[], scenes=[], pitches=[100,78,205];let cursor=.7,lastScene=-1;
+  while(cursor<80){
+    let scene=Math.floor(random()*candidates.length);
+    if(scene===lastScene)scene=(scene+1)%candidates.length;
+    lastScene=scene;scenes.push(scene);
+    for(const turn of candidates[scene]){
+      const {voice,text}=turn,turnIndex=dialogue.length;dialogue.push(turn);
+      let caption='';
+      for(const word of text.split(' ')){
+        caption+=(caption?' ':'')+word;
+        captions.push({at:cursor,voice,text:caption,turn:turnIndex});
+        const count=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
+        for(let j=0;j<count;j++){
+          const duration=.065+random()*.075;
+          tones.push({at:cursor,voice,hz:pitches[voice]*(.8+random()*.65),duration,vowel:word.charCodeAt(j%word.length)});
+          cursor+=duration+.025;
+        }
+        cursor+=/[.,?!]$/.test(word)?.25:.075;
       }
-      cursor+=/[.,?!]$/.test(word)?.25:.075;
+      cursor+=.8;
     }
-    cursor+=.8;
   }
-  const duration=cursor+1;
-  if(duration>=59)throw new Error('This conversation is too long to export. Try again.');
-  return {tones,captions,duration};
+  // Fit complete exchanges between a short lead-in and the final hold.
+  const scale=(EXPORT_DURATION-1-.7)/(cursor-.7);
+  for(const tone of tones){tone.at=.7+(tone.at-.7)*scale;tone.duration*=scale;}
+  for(const caption of captions)caption.at=.7+(caption.at-.7)*scale;
+  return {tones,captions,dialogue,scenes,duration:EXPORT_DURATION};
 }
 export function frameAt(plan,time){
   const mouths=[false,false,false],captions=['','',''];

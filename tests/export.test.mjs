@@ -4,15 +4,18 @@ import { makeExportPlan, frameAt } from '../dist/export-plan.js';
 import { exchanges } from '../dist/conversation.js';
 import { mp4Mime } from '../dist/export-video.js';
 
-test('every export is a complete three-face conversation under one minute',()=>{
+test('every export fills 90 seconds with complete three-face exchanges',()=>{
   const candidates=exchanges.filter(turns=>new Set(turns.map(turn=>turn.voice)).size===3);
   for(let i=0;i<candidates.length;i++)for(const pace of [0,.999999]){
     let first=true;const plan=makeExportPlan(()=>{if(first){first=false;return(i+.5)/candidates.length}return pace});
-    assert(plan.duration<59);assert(plan.duration>5);
+    assert.equal(plan.duration,90);
+    assert(plan.scenes.length>1);
+    assert(plan.scenes.every((scene,n)=>n===0||scene!==plan.scenes[n-1]));
     assert.equal(new Set(plan.tones.map(t=>t.voice)).size,3);
-    const finalCaptions=plan.captions.filter((c,n)=>!plan.captions[n+1]||plan.captions[n+1].voice!==c.voice);
-    assert.deepEqual(finalCaptions.map(c=>c.text),candidates[i].map(t=>t.text));
+    const finalCaptions=plan.captions.filter((c,n)=>!plan.captions[n+1]||plan.captions[n+1].turn!==c.turn);
+    assert.deepEqual(finalCaptions.map(c=>c.text),plan.dialogue.map(t=>t.text));
     assert(plan.tones.every(t=>t.at+t.duration<plan.duration));
+    assert(plan.tones.at(-1).at>85);
   }
 });
 test('export mouth frames and captions follow the same audio timeline',()=>{

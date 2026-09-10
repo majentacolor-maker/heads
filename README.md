@@ -18,4 +18,4 @@ Each automatic turn has a 5% chance of a character reaction: blue’s descending
 
 Singers share one lyric phrase, revealing a word per note above their individual note names. New conversations choose a linked exchange 75% of the time; the rest draw from the existing solo lines. Replies follow the scene's speakers with shorter pauses. Speech remains scripted, without an AI service.
 
-EXPORT MP4 generates a complete three-face exchange in 1280×720, with synthesized audio, mouth animation, and word-by-word captions. It records in real time, stays under 59 seconds, and downloads an MP4. Keep the tab visible; CANCEL or hiding the tab stops recording. Requires browser MP4 MediaRecorder support. Audio is rendered offline before capture; no microphone or server is used.
+EXPORT MP4 generates complete three-face exchanges in 1280×720, with synthesized audio, mouth animation, and word-by-word captions. It records in real time, runs for 90 seconds, and downloads an MP4. Keep the tab visible; CANCEL or hiding the tab stops recording. Requires browser MP4 MediaRecorder support. Audio is rendered offline before capture; no microphone or server is used.

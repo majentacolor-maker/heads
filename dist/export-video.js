@@ -61,15 +61,15 @@ export async function exportVideo({context,renderAudio,stop,signal,onProgress}){
     signal.addEventListener('abort',abort,{once:true});
     try{
       recorder.start(1000);
-      const base=context.currentTime+.12;
-      playback=context.createBufferSource();playback.buffer=sound;playback.connect(audio);playback.connect(context.destination);playback.start(base);
+      const base=context.currentTime;
+      playback=context.createBufferSource();playback.buffer=sound;playback.connect(audio);playback.connect(context.destination);playback.onended=()=>{if(recorder.state!=='inactive')recorder.stop()};playback.start(base);
       const tick=()=>{
         const elapsed=Math.max(0,context.currentTime-base);
         draw(pen,art,plan,elapsed);onProgress(Math.min(99,Math.floor(elapsed/plan.duration*100)));
         if(elapsed>=plan.duration){recorder.stop();return}animation=requestAnimationFrame(tick);
       };
       animation=requestAnimationFrame(tick);
-      watchdog=setTimeout(()=>{error=new Error('Recording paused. Keep this tab open and try again.');abort()},59000);
+      watchdog=setTimeout(()=>{error=new Error('Recording paused. Keep this tab open and try again.');abort()},(plan.duration+15)*1000);
       const blob=await result;
       // Never save a WebM file with an MP4 extension.
       const signature=new Uint8Array(await blob.slice(4,8).arrayBuffer());
