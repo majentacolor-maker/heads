@@ -30,7 +30,6 @@ function wrappedLines(pen,text,width){
 }
 function draw(pen,art,plan,time){
   pen.fillStyle='#000';pen.fillRect(0,0,WIDTH,HEIGHT);
-  pen.fillStyle='#fff';pen.font='24px Menlo, Monaco, monospace';pen.textAlign='center';pen.textBaseline='top';pen.fillText('HEADS',WIDTH/2,42);
   const state=frameAt(plan,time);
   for(const [position,voice] of [0,2,1].entries()){
     const x=40+position*408;
@@ -67,7 +66,7 @@ export async function exportVideo({context,renderAudio,stop,signal,onProgress}){
     try{
       recorder.start(1000);
       const base=context.currentTime;
-      playback=context.createBufferSource();playback.buffer=sound;playbackGain=context.createGain();playback.connect(playbackGain);playbackGain.connect(audio);playbackGain.connect(context.destination);playback.onended=()=>{if(recorder.state!=='inactive')recorder.stop()};playback.start(base);
+      playback=context.createBufferSource();playback.buffer=sound;playbackGain=context.createGain();playback.connect(playbackGain);playbackGain.connect(audio);playback.onended=()=>{if(recorder.state!=='inactive')recorder.stop()};playback.start(base);
       const tick=()=>{
         const elapsed=Math.max(0,context.currentTime-base);
         draw(pen,art,plan,elapsed);onProgress(Math.min(99,Math.floor(elapsed/plan.duration*100)));

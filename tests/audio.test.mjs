@@ -1,5 +1,6 @@
+import {blueSpeechData} from '../dist/blue-speech-data.js';
 import { exchanges, chooseLyrics, singingSyllables, chooseConclusion, conclusions, lyrics } from '../dist/conversation.js';
-import { newLines } from '../dist/dialogue.js';
+import { newLines, blueLines } from '../dist/dialogue.js';
 import { melodies } from '../dist/melodies.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -29,11 +30,11 @@ function harness(){
   const elements=new Map(),pending=new Map(), played=[], buffers=[];let id=0;
   const element=name=>{if(!elements.has(name))elements.set(name,{style:{},textContent:'',setAttribute(){}});return elements.get(name)};
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
-  const node=()=>({gain:param(),frequency:param(),detune:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
+  const node=()=>({gain:param(),frequency:param(),playbackRate:param(),detune:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,vowelCode,blueVowelProfile,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,blueLines,blueSpeechData,loadBlueSpeech:async(text,ctx)=>ctx.createBuffer(1,Math.ceil(blueSpeechData[text].duration*22050),22050),melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,vowelCode,blueVowelProfile,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
-    AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,getChannelData(){return data}}}async resume(){}},
+    AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,duration:length/rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
   });
   const source=readFileSync(new URL('../dist/app.js',import.meta.url),'utf8').replace(/^import[^\n]+\n/gm,'');vm.runInContext(source,context);
@@ -74,7 +75,7 @@ test('100 distinct closing lines end silently with WAKE ready for a new conversa
     globalThis.endingActions=[];const originalPerform=perform;
     perform=(kind,options={})=>{endingActions.push({kind,text:options.text,voices:options.voices});originalPerform(kind,options)};
     schedule();`,h.context);
-  for(let pass=0;h.pending.size&&pass<10;pass++)for(const entry of [...h.pending.values()].sort((a,b)=>a.ms-b.ms))entry.fn();
+  for(let pass=0;pass<10;pass++){await new Promise(resolve=>setImmediate(resolve));if(!h.pending.size)break;for(const entry of [...h.pending.values()].sort((a,b)=>a.ms-b.ms))entry.fn();}
   const actions=vm.runInContext('endingActions',h.context);
   assert.equal(actions.length,2);assert.equal(actions[0].kind,'talk');
   assert(conclusions.some(line=>line.text===actions[0].text));

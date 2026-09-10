@@ -1,11 +1,19 @@
 import { speechSyllable, laughPhrase, vowelCode } from './music.js';
 import { exchanges, chooseConclusion } from './conversation.js';
+import {blueSpeechData} from './blue-speech-data.js';
 export const EXPORT_DURATION=60;
 export function makeExportPlan(random=Math.random){
   const candidates=exchanges.filter(turns=>new Set(turns.map(turn=>turn.voice)).size===3);
   const tones=[],captions=[],dialogue=[],scenes=[],pitches=[100,78,205];let cursor=.7,lastScene=-1;
   function speak(turn){
     const {voice,text}=turn,turnIndex=dialogue.length;dialogue.push(turn);
+    if(voice===0){
+      const clip=blueSpeechData[text];
+      if(!clip)throw new Error('Blue speech is unavailable for this line.');
+      tones.push({at:cursor,voice,text,kind:'speech',duration:clip.duration,sourceDuration:clip.duration,activity:clip.activity});
+      for(const word of clip.words)captions.push({at:cursor+word.at,voice,text:word.text,turn:turnIndex});
+      cursor+=clip.duration+.45;return;
+    }
     let caption='';
     for(const word of text.split(' ')){
       caption+=(caption?' ':'')+word;
@@ -44,7 +52,11 @@ export function makeExportPlan(random=Math.random){
 }
 export function frameAt(plan,time){
   const mouths=[false,false,false],frames=['talk','talk','talk'],captions=['','',''];
-  for(const tone of plan.tones)if(time>=tone.at&&time<tone.at+tone.duration){mouths[tone.voice]=true;frames[tone.voice]=tone.kind??'talk';}
+  for(const tone of plan.tones)if(time>=tone.at&&time<tone.at+tone.duration){
+    const local=(time-tone.at)*(tone.sourceDuration??tone.duration)/tone.duration;
+    mouths[tone.voice]=tone.kind!=='speech'||tone.activity.some(([start,end])=>local>=start&&local<end);
+    frames[tone.voice]=tone.kind==='speech'?'talk':tone.kind??'talk';
+  }
   let current;
   for(const caption of plan.captions){if(caption.at>time)break;current=caption;}
   if(current)for(const caption of plan.captions){

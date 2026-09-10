@@ -1,6 +1,7 @@
 import { exportVideo, mp4Mime } from './export-video.js';
+import {blueSpeechData,loadBlueSpeech} from './blue-speech.js';
 import { exchanges, chooseLyrics, singingSyllables, chooseConclusion } from './conversation.js';
-import { newLines } from './dialogue.js';
+import { newLines, blueLines } from './dialogue.js';
 import { melodies } from './melodies.js';
 import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter, laughPhrase, vowelCode, blueVowelProfile } from './music.js';
 const $ = id => document.getElementById(id);
@@ -8,9 +9,8 @@ let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
 const previousPitch = [null,null,null];
 let replyQueue=[], lastExchange=-1, exportController=null, closeAt=Infinity, closing=false;
-const blueLines = ['Oh. You are here.', 'I was thinking about nothing.', 'There is a small sound inside my head.', 'I have been here the whole time.', 'Do you think the room can hear us?', 'I almost remembered something.', 'That was a thought. It has gone now.', 'I like the space between the notes.', 'This is my face. It does this.', 'Sometimes I count the quiet.', 'One. Two. No, start again.', 'I wonder what blue sounds like.', 'I could stay like this for a while.', 'Something is humming. It might be me.', 'I had a dream about a very small door.', 'Hello again, probably.', 'I am practicing being here.', 'A little noise. For no reason.', 'I do not have anywhere to be.', 'Was that a joke?'];
 const heads = [
-  {id:'blue',pitch:100,lines:blueLines},
+  {id:'blue',pitch:100,lines:[...blueLines]},
   {id:'yellow',pitch:78,lines:['I have already decided.', 'Make room. I am here.', 'Of course I can.', 'Watch closely.', 'I do not ask the room for permission.', 'That was not luck.', 'We will do it my way.', 'I know exactly who I am.', 'Even the silence listens to me.', 'I said what I said.', 'Doubt takes too long.', 'Consider it handled.']},
   {id:'pink',pitch:205,lines:['Oh. Were you talking?', 'I forgot. It seemed unimportant.', 'Is that a thought? Cute.', 'I would explain, but I lost interest.', 'I thought infinity was a perfume.', 'Whatever. I look lovely.', 'Do I have to know what that means?', 'I was listening to the pretty part.', 'Tomorrow is the one after today, right?', 'That sounds complicated. No, thank you.', 'I had a point. Never mind.', 'Mm. Probably.']}
 ];
@@ -30,6 +30,30 @@ function trackSource(source,envelope,filter){
     gate.gain.linearRampToValueAtTime(0,now+.015);source.stop(now+.02);
   };
   source.onended=()=>{sources.delete(source);source.disconnect();filter?.disconnect();envelope.disconnect();gate.disconnect()};
+}
+function playBlueSpeech(buffer,at,duration){
+  for(const [cents,balance] of [[0,1],[7,.35]]){
+    const source=ctx.createBufferSource(),gain=ctx.createGain();
+    source.buffer=buffer;source.playbackRate.value=buffer.duration/duration;source.detune.value=cents;
+    const volume=2.2*balance;
+    gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(volume,at+.012);
+    gain.gain.setValueAtTime(volume,at+duration-.02);gain.gain.linearRampToValueAtTime(0,at+duration);
+    source.connect(gain);trackSource(source,gain);source.start(at);source.stop(at+duration+.01);
+  }
+}
+async function speakBlue(text,token,onComplete){
+  try{
+    const info=blueSpeechData[text],buffer=await loadBlueSpeech(text,ctx);
+    if(token!==run||!awake||exportController)return;
+    const at=ctx.currentTime+.04,frame=$('blueFrames');
+    playBlueSpeech(buffer,at,info.duration);
+    for(const word of info.words)later(()=>{$('blueSubtitle').textContent=word.text},(at-ctx.currentTime+word.at)*1000);
+    for(const [start,end] of info.activity){
+      later(()=>{frame.style.backgroundPosition='0 0';frame.style.opacity='1'},(at-ctx.currentTime+start)*1000);
+      later(()=>{frame.style.opacity='0'},(at-ctx.currentTime+end)*1000);
+    }
+    finish(info.duration+.04,token,onComplete);
+  }catch(error){if(token===run){sleep();$('blueSubtitle').textContent=error.message;}}
 }
 function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk', level=1, contour) {
   if(voice===2&&!contour)contour={from:previousPitch[voice]??hz*.8,to:hz,seconds:Math.min(.24,duration*.6)};
@@ -166,6 +190,7 @@ function perform(kind,options={}){
     }
   }else if(kind==='talk'){
     let i=Math.floor(Math.random()*lines.length);if(i===heads[active].lastLine)i=(i+1)%lines.length;heads[active].lastLine=i;
+    if(active===0)return speakBlue(spoken??lines[i],token,options.onComplete);
     const words=(spoken??lines[i]).split(' ');let text='';
     for(const word of words){const shown=(text+=(text?' ':'')+word);later(()=>{subtitle().textContent=shown},(t-ctx.currentTime)*1000);
       const n=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
@@ -207,7 +232,7 @@ function perform(kind,options={}){
   }
   finish(t-start+.04,token,options.onComplete);
 }
-async function wake(kind='talk'){if(exportController||(closing&&awake))return;try{await audio();if(exportController)return;if(kind!=='talk')replyQueue=[];if(!awake){closing=false;closeAt=ctx.currentTime+48+Math.random()*4;awake=true;document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
+async function wake(kind='talk'){if(exportController||(closing&&awake))return;try{await audio();if(exportController)return;if(kind!=='talk')replyQueue=[];if(!awake){closing=false;closeAt=ctx.currentTime+48+Math.random()*4;awake=true;document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true')}return perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
 function finishConversation(){
   sleep();
 }
@@ -218,14 +243,19 @@ document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.alt
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(exportController)exportController.abort();if(awake)sleep()}});
 if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'sleep_head',description:'Stop the head and its audio.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false},execute(input){if(!input||typeof input!=='object'||Object.keys(input).length)throw new Error('Expected an empty object');sleep();return{awake:false}}})).catch(()=>{})}catch{}}
 
-function renderExportAudio(plan){
+async function renderExportAudio(plan){
+  const speech=new Map();
+  await Promise.all(plan.tones.filter(event=>event.kind==='speech').map(async event=>{speech.set(event.text,await loadBlueSpeech(event.text,ctx))}));
   const liveContext=ctx,liveMaster=master;
   const offline=new OfflineAudioContext(1,Math.ceil(plan.duration*48000),48000);
   try{
     ctx=offline;master=offline.createGain();master.gain.value=.1575;
     const limiter=offline.createDynamicsCompressor();master.connect(limiter);limiter.connect(offline.destination);
     previousPitch.fill(null);
-    for(const event of plan.tones)tone(event.hz,event.duration,event.at,event.vowel,'square',event.voice,event.kind??'talk',event.level??1);
+    for(const event of plan.tones){
+      if(event.kind==='speech')playBlueSpeech(speech.get(event.text),event.at,event.duration);
+      else tone(event.hz,event.duration,event.at,event.vowel,'square',event.voice,event.kind??'talk',event.level??1);
+    }
   }finally{ctx=liveContext;master=liveMaster;}
   return offline.startRendering();
 }
@@ -233,12 +263,12 @@ $('export').onclick=async()=>{
   if(exportController){exportController.abort();return}
   if(!mp4Mime()){$('exportStatus').textContent='MP4 export needs a browser with MP4 recording, such as current Safari or Chrome.';return}
   sleep();exportController=new AbortController();const signal=exportController.signal;let completed=false;
-  $('power').disabled=true;$('export').textContent='CANCEL';$('exportStatus').textContent='Keep this tab open while recording.';
+  $('power').disabled=true;$('export').textContent='CANCEL';$('exportProgress').hidden=false;$('exportProgress').value=0;$('exportStatus').textContent='Keep this tab open while recording.';
   try{
     await audio();
-    await exportVideo({context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('export').textContent=`CANCEL ${percent}%`}});
+    await exportVideo({context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('exportProgress').value=percent}});
     completed=true;
     $('exportStatus').textContent='';
   }catch(error){$('exportStatus').textContent=error.name==='AbortError'?'Export cancelled.':error.message;}
-  finally{exportController=null;if(completed)finishConversation();else sleep();$('power').disabled=false;$('export').textContent='EXPORT MP4';}
+  finally{exportController=null;if(completed)finishConversation();else sleep();$('power').disabled=false;$('export').textContent='EXPORT MP4';$('exportProgress').hidden=true;}
 };
