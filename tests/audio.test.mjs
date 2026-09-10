@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-import { minorNote, minorScale, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable } from '../dist/music.js';
+import { minorNote, minorScale, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter } from '../dist/music.js';
 
 test('ensembles can choose one, two or three distinct heads',()=>{
   for(const lead of [0,1,2])for(const [random,count] of [[.1,1],[.5,2],[.99,3]]){
@@ -30,7 +30,7 @@ function harness(){
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
   const node=()=>({gain:param(),frequency:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
     AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
@@ -115,4 +115,21 @@ test('speech gestures add deep yellow pitches, pink stutters, and long blue hold
   assert(stutter.length>=3);assert(stutter.every(part=>part.duration+part.gap<.05));
   assert(speechSyllable(0,100,()=>.1)[0].duration>.22);
   assert(speechSyllable(0,100,()=>.9)[0].duration<.15);
+});
+
+
+test('blue scream jitters in a low register with random timing',()=>{
+  const a=screamJitter(2.8,()=>.1),b=screamJitter(2.8,()=>.9);
+  assert(a.length>25);assert(a.every(p=>p.hz>=35&&p.hz<=210));
+  assert.notDeepEqual(a,b);assert.equal(a.at(-1).at,2.8);
+  const varied=screamJitter(2.8,(()=>{let value=0;return()=>{value=(value+.37)%1;return value}})());
+  assert(varied.some((p,i)=>i&&p.hz>varied[i-1].hz));
+  assert(varied.some((p,i)=>i&&p.hz<varied[i-1].hz));
+});
+test('yellow breath ignores pitch and glide settings',async()=>{
+  const h=harness();await vm.runInContext('audio()',h.context);
+  vm.runInContext("texture(40,1.6,0,0,1,'sigh',1)",h.context);
+  const low=h.buffers.at(-1);
+  vm.runInContext("texture(800,1.6,0,0,1,'sigh',1,{from:800,to:1500,seconds:1.6})",h.context);
+  assert.deepEqual(h.buffers.at(-1),low);
 });

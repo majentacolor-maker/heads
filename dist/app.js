@@ -2,7 +2,7 @@ import { exportVideo, mp4Mime } from './export-video.js';
 import { exchanges, chooseLyrics } from './conversation.js';
 import { newLines } from './dialogue.js';
 import { melodies } from './melodies.js';
-import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable } from './music.js';
+import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter } from './music.js';
 const $ = id => document.getElementById(id);
 let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
@@ -30,8 +30,11 @@ function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk
   later(()=>{ frame.style.opacity='0'; },delay+duration*1000);}
   if(voice!==0){texture(hz,duration,at,vowel,voice,kind,level,contour);return}
   const osc=ctx.createOscillator(), filter=ctx.createBiquadFilter(), gain=ctx.createGain();
-  osc.type=type;osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);
-  filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?350:[650,1100,1800,850][vowel%4],at);filter.Q.value=kind==='scream'?.7:3;
+  osc.type=type;
+  if(kind==='scream'){
+    for(const point of screamJitter(duration))osc.frequency.setValueAtTime(point.hz,at+point.at);
+  }else{osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);}
+  filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?35:[650,1100,1800,850][vowel%4],at);filter.Q.value=kind==='scream'?.7:3;
   gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*level,at+Math.min(.009,duration*.2));gain.gain.setValueAtTime(.42*level,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
   osc.connect(filter);filter.connect(gain);gain.connect(master);sources.add(osc);
   osc.onended=()=>{sources.delete(osc);osc.disconnect();filter.disconnect();gain.disconnect()};osc.start(at);osc.stop(at+duration+.01);
@@ -39,7 +42,10 @@ function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk
 // Yellow decimates both noise and pulse; its clock and bit depth follow pitch.
 function texture(hz,duration,at,vowel,voice,kind,level,contour){
   const rate=voice===1?ctx.sampleRate:8000, length=Math.ceil((duration+.02)*rate), buffer=ctx.createBuffer(1,length,rate), out=buffer.getChannelData(0);
-  if(voice===1){
+  if(voice===1&&kind==='sigh'){
+    // A breath is broadband noise shaped only by its exhale envelope.
+    for(let i=0;i<length;i++)out[i]=(Math.random()*2-1)*.65;
+  }else if(voice===1){
     let held=0, clock=1, phase=0;
     for(let i=0;i<length;i++){
       const pitch=contour?glidePitch(contour.from,contour.to,i/rate,contour.seconds):hz*(kind==='sing'?1:1-.12*i/length);
@@ -49,7 +55,7 @@ function texture(hz,duration,at,vowel,voice,kind,level,contour){
         clock%=1;
         const pulse=Math.sin(2*Math.PI*phase)>0?1:-1;
         const noise=Math.random()*2-1;
-        const sample=kind==='sing'?pulse*.8+noise*.12:kind==='sigh'?pulse*.16+noise*.8:pulse*.38+noise*.6;
+        const sample=kind==='sing'?pulse*.8+noise*.12:pulse*.38+noise*.6;
         held=Math.round((sample+1)*.5*steps)/steps*2-1;
       }
       clock+=settings.sampleRate/rate;out[i]=held;
@@ -96,7 +102,7 @@ function schedule(){
     active=replyQueue.length?replyQueue[0].voice:(active+1)%heads.length;
     const action=automaticAction();
     perform(replyQueue.length&&action!=='reaction'?'talk':action);
-  },replying?450+Math.random()*750:1800+Math.random()*2600);
+  },replying?250+Math.random()*450:1000+Math.random()*1500);
 }
 function finish(duration,token){later(()=>{if(token!==run)return;schedule()},duration*1000+80)}
 function perform(kind){
@@ -113,10 +119,10 @@ function perform(kind){
   if(kind==='reaction'){
     if(active===0){
       subtitle().textContent='[ aaaaaah — ]';
-      tone(1600,2.8,t,0,'sawtooth',0,'scream',.32,{from:1600,to:150,seconds:2.8});t+=2.8;
+      tone(120,2.8,t,0,'sawtooth',0,'scream',.32);t+=2.8;
     }else if(active===1){
       subtitle().textContent='[ sigh ]';
-      tone(92,1.6,t,0,'square',1,'sigh',.9,{from:92,to:120,seconds:1.6});t+=1.6;
+      tone(0,1.6,t,0,'square',1,'sigh',.9);t+=1.6;
     }else{
       subtitle().textContent='[ hi hi hi hi hi! ]';
       for(let i=0;i<12;i++){

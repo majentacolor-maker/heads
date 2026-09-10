@@ -23,7 +23,7 @@ export function makeExportPlan(random=Math.random){
         }
         cursor+=/[.,?!]$/.test(word)?.25:.075;
       }
-      cursor+=.8;
+      cursor+=.45;
     }
   }
   // Fit complete exchanges between a short lead-in and the final hold.

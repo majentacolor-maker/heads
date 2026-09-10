@@ -38,3 +38,12 @@ export function speechSyllable(voice,basePitch,random=Math.random){
   const duration=voice===0&&random()<.3?.22+random()*.24:.065+random()*.075;
   return [{hz,duration,gap:.025}];
 }
+export function screamJitter(duration,random=Math.random){
+  const points=[{at:0,hz:120}];
+  for(let at=.04;at<duration;at+=.03+random()*.075){
+    const center=120-60*at/duration;
+    points.push({at,hz:Math.max(35,Math.min(210,center*(.55+random()*1.2)))});
+  }
+  points.push({at:duration,hz:50});
+  return points;
+}
