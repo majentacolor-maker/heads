@@ -1,3 +1,4 @@
+import { exportVideo, mp4Mime } from './export-video.js';
 import { exchanges, chooseLyrics } from './conversation.js';
 import { newLines } from './dialogue.js';
 import { melodies } from './melodies.js';
@@ -6,7 +7,7 @@ const $ = id => document.getElementById(id);
 let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
 const previousPitch = [null,null,null];
-let replyQueue=[], lastExchange=-1;
+let replyQueue=[], lastExchange=-1, exportController=null;
 const blueLines = ['Oh. You are here.', 'I was thinking about nothing.', 'There is a small sound inside my head.', 'I have been here the whole time.', 'Do you think the room can hear us?', 'I almost remembered something.', 'That was a thought. It has gone now.', 'I like the space between the notes.', 'This is my face. It does this.', 'Sometimes I count the quiet.', 'One. Two. No, start again.', 'I wonder what blue sounds like.', 'I could stay like this for a while.', 'Something is humming. It might be me.', 'I had a dream about a very small door.', 'Hello again, probably.', 'I am practicing being here.', 'A little noise. For no reason.', 'I do not have anywhere to be.', 'Was that a joke?'];
 const heads = [
   {id:'blue',pitch:100,lines:blueLines},
@@ -25,8 +26,8 @@ function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk
   previousPitch[voice]=hz;
   const frame=$(heads[voice].id+'Frames');
   const delay=Math.max(0,(at-ctx.currentTime)*1000);
-  later(()=>{ frame.style.backgroundPosition=['laugh','giggle'].includes(kind)?'50% 0':['sing','scream','sigh'].includes(kind)?'100% 0':'0 0'; frame.style.opacity='1'; },delay);
-  later(()=>{ frame.style.opacity='0'; },delay+duration*1000);
+  if(!exportController){later(()=>{ frame.style.backgroundPosition=['laugh','giggle'].includes(kind)?'50% 0':['sing','scream','sigh'].includes(kind)?'100% 0':'0 0'; frame.style.opacity='1'; },delay);
+  later(()=>{ frame.style.opacity='0'; },delay+duration*1000);}
   if(voice!==0){texture(hz,duration,at,vowel,voice,kind,level,contour);return}
   const osc=ctx.createOscillator(), filter=ctx.createBiquadFilter(), gain=ctx.createGain();
   osc.type=type;osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);
@@ -162,10 +163,34 @@ function perform(kind){
   }
   finish(t-start+.04,token);
 }
-async function wake(kind='talk'){try{await audio();if(kind!=='talk')replyQueue=[];if(!awake){awake=true;document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
+async function wake(kind='talk'){if(exportController)return;try{await audio();if(exportController)return;if(kind!=='talk')replyQueue=[];if(!awake){awake=true;document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
 function sleep(){replyQueue=[];awake=false;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
-function toggle(){awake?sleep():wake()}
+function toggle(){if(!exportController)awake?sleep():wake()}
 $('power').onclick=toggle;
 document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.target.tagName==='BUTTON')return;if(e.code==='Space'){e.preventDefault();toggle()}});
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&awake)sleep()});
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(exportController)exportController.abort();if(awake)sleep()}});
 if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'sleep_head',description:'Stop the head and its audio.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false},execute(input){if(!input||typeof input!=='object'||Object.keys(input).length)throw new Error('Expected an empty object');sleep();return{awake:false}}})).catch(()=>{})}catch{}}
+
+function renderExportAudio(plan){
+  const liveContext=ctx,liveMaster=master;
+  const offline=new OfflineAudioContext(1,Math.ceil(plan.duration*48000),48000);
+  try{
+    ctx=offline;master=offline.createGain();master.gain.value=.1575;
+    const limiter=offline.createDynamicsCompressor();master.connect(limiter);limiter.connect(offline.destination);
+    previousPitch.fill(null);
+    for(const event of plan.tones)tone(event.hz,event.duration,event.at,event.vowel,'square',event.voice,'talk');
+  }finally{ctx=liveContext;master=liveMaster;}
+  return offline.startRendering();
+}
+$('export').onclick=async()=>{
+  if(exportController){exportController.abort();return}
+  if(!mp4Mime()){$('exportStatus').textContent='MP4 export needs a browser with MP4 recording, such as current Safari or Chrome.';return}
+  sleep();exportController=new AbortController();const signal=exportController.signal;
+  $('power').disabled=true;$('export').textContent='CANCEL';$('exportStatus').textContent='Keep this tab open while recording.';
+  try{
+    await audio();
+    await exportVideo({context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('export').textContent=`CANCEL ${percent}%`}});
+    $('exportStatus').textContent='MP4 ready.';
+  }catch(error){$('exportStatus').textContent=error.name==='AbortError'?'Export cancelled.':error.message;}
+  finally{sleep();exportController=null;$('power').disabled=false;$('export').textContent='EXPORT MP4';}
+};
