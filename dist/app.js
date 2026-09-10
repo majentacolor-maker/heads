@@ -162,10 +162,10 @@ function perform(kind){
   }
   finish(t-start+.04,token);
 }
-async function wake(kind='talk'){try{await audio();if(kind!=='talk')replyQueue=[];if(!awake){awake=true;document.body.classList.add('awake');$('power').textContent='Sleep';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
-function sleep(){replyQueue=[];awake=false;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='Wake';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
+async function wake(kind='talk'){try{await audio();if(kind!=='talk')replyQueue=[];if(!awake){awake=true;document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
+function sleep(){replyQueue=[];awake=false;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
 function toggle(){awake?sleep():wake()}
-$('power').onclick=toggle;$('laugh').onclick=()=>wake('laugh');$('sing').onclick=()=>wake('sing');
+$('power').onclick=toggle;
 document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.target.tagName==='BUTTON')return;if(e.code==='Space'){e.preventDefault();toggle()}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&awake)sleep()});
 if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'sleep_head',description:'Stop the head and its audio.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false},execute(input){if(!input||typeof input!=='object'||Object.keys(input).length)throw new Error('Expected an empty object');sleep();return{awake:false}}})).catch(()=>{})}catch{}}
