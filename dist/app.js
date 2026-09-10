@@ -121,7 +121,7 @@ function conclude(){
   closing=true;replyQueue=[];
   const ending=chooseConclusion();active=ending.voice;
   perform('talk',{text:ending.text,onComplete:()=>{
-    later(()=>perform('laugh',{voices:[0,1,2],onComplete:()=>later(sleep,800)}),350);
+    later(()=>perform('laugh',{voices:[0,1,2],onComplete:()=>later(finishConversation,800)}),350);
   }});
 }
 function perform(kind,options={}){
@@ -193,6 +193,11 @@ function perform(kind,options={}){
   finish(t-start+.04,token,options.onComplete);
 }
 async function wake(kind='talk'){if(exportController||(closing&&awake))return;try{await audio();if(exportController)return;if(kind!=='talk')replyQueue=[];if(!awake){closing=false;closeAt=ctx.currentTime+48+Math.random()*4;awake=true;document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
+function finishConversation(){
+  cancel();replyQueue=[];closeAt=Infinity;closing=true;awake=true;
+  heads.forEach(h=>$(h.id+'Subtitle').textContent='');
+  $('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true');document.body.classList.add('awake');
+}
 function sleep(){replyQueue=[];awake=false;closing=false;closeAt=Infinity;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
 function toggle(){if(!exportController)awake?sleep():wake()}
 $('power').onclick=toggle;
@@ -214,12 +219,13 @@ function renderExportAudio(plan){
 $('export').onclick=async()=>{
   if(exportController){exportController.abort();return}
   if(!mp4Mime()){$('exportStatus').textContent='MP4 export needs a browser with MP4 recording, such as current Safari or Chrome.';return}
-  sleep();exportController=new AbortController();const signal=exportController.signal;
+  sleep();exportController=new AbortController();const signal=exportController.signal;let completed=false;
   $('power').disabled=true;$('export').textContent='CANCEL';$('exportStatus').textContent='Keep this tab open while recording.';
   try{
     await audio();
     await exportVideo({context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('export').textContent=`CANCEL ${percent}%`}});
+    completed=true;
     $('exportStatus').textContent='';
   }catch(error){$('exportStatus').textContent=error.name==='AbortError'?'Export cancelled.':error.message;}
-  finally{sleep();exportController=null;$('power').disabled=false;$('export').textContent='EXPORT MP4';}
+  finally{exportController=null;if(completed)finishConversation();else sleep();$('power').disabled=false;$('export').textContent='EXPORT MP4';}
 };
