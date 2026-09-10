@@ -15,3 +15,12 @@ export function ensemble(lead, random = Math.random) {
   if (random() < .5) others.reverse();
   return [lead, ...others.slice(0, count - 1)];
 }
+export function automaticAction(random = Math.random) {
+  const roll = random();
+  return roll < .05 ? 'reaction' : roll < .18 ? 'laugh' : roll < .31 ? 'sing' : 'talk';
+}
+export function glidePitch(from, to, time, duration) {
+  const fraction = Math.max(0, Math.min(1, time / duration));
+  const smooth = fraction * fraction * (3 - 2 * fraction);
+  return from * (to / from) ** smooth;
+}

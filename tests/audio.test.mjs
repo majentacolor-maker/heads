@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-import { minorNote, minorScale, decimatorSettings, ensemble } from '../dist/music.js';
+import { minorNote, minorScale, decimatorSettings, ensemble, automaticAction, glidePitch } from '../dist/music.js';
 
 test('ensembles can choose one, two or three distinct heads',()=>{
   for(const lead of [0,1,2])for(const [random,count] of [[.1,1],[.5,2],[.99,3]]){
@@ -26,10 +26,10 @@ test('decimation clock and depth track pitch within bounds',()=>{
 function harness(){
   const elements=new Map(),pending=new Map(), played=[], buffers=[];let id=0;
   const element=name=>{if(!elements.has(name))elements.set(name,{style:{},textContent:'',setAttribute(){}});return elements.get(name)};
-  const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},cancelScheduledValues(){}});
+  const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
   const node=()=>({gain:param(),frequency:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({newLines,melodies,minorNote,decimatorSettings,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+  const context=vm.createContext({newLines,melodies,minorNote,decimatorSettings,automaticAction,glidePitch,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
     AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
@@ -53,5 +53,34 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
     for(const data of h.buffers){assert(data.every(Number.isFinite));assert(data.some(x=>x!==0));}
     vm.runInContext('sleep()',h.context);assert.equal(h.pending.size,0);
     for(const voice of ['blue','yellow','pink'])assert.equal(h.elements.get(voice+'Frames').style.opacity,'0');
+  }
+});
+
+test('reaction occupies exactly the first five percent of automatic choices',()=>{
+  assert.equal(automaticAction(()=>0),'reaction');
+  assert.equal(automaticAction(()=>.049999),'reaction');
+  assert.notEqual(automaticAction(()=>.05),'reaction');
+  let reactions=0;for(let i=0;i<10000;i++)if(automaticAction(()=>i/10000)==='reaction')reactions++;
+  assert.equal(reactions,500);
+});
+test('pitch glides are continuous, directional, and settle at the destination',()=>{
+  for(const [from,to,duration] of [[1600,150,2.8],[92,120,1.6],[220,440,.24]]){
+    assert.equal(glidePitch(from,to,0,duration),from);
+    assert(Math.abs(glidePitch(from,to,duration,duration)-to)<1e-8);
+    let previous=from;
+    for(let i=1;i<=100;i++){const current=glidePitch(from,to,duration*i/100,duration);assert(to>from?current>=previous:current<=previous);previous=current;}
+  }
+});
+test('all reactions produce audio with matching subtitles and cancel cleanly',async()=>{
+  const h=harness();
+  for(const [voice,label,count] of [[0,'[ aaaaaah — ]',1],[1,'[ sigh ]',1],[2,'[ hi hi hi hi hi! ]',12]]){
+    h.played.length=0;
+    vm.runInContext(`active=${voice}`,h.context);
+    await vm.runInContext("wake('reaction')",h.context);
+    assert.equal(h.played.length,count);
+    assert.equal(h.elements.get(['blue','yellow','pink'][voice]+'Subtitle').textContent,label);
+    if(voice===2)for(let i=1;i<h.played.length;i++)assert(Math.abs(h.played[i].at-h.played[i-1].at-.073)<1e-8);
+    for(const data of h.buffers)assert(data.every(Number.isFinite));
+    vm.runInContext('sleep()',h.context);assert.equal(h.pending.size,0);
   }
 });

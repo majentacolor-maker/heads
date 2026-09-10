@@ -13,3 +13,5 @@ Check syntax with `npm run check`.
 Singing uses C natural minor with random solos, duets, and trios. Laughter can overlap across the same ensembles. Yellow’s sample rate and bit depth rise with vocal pitch.
 
 Dialogue: 120 blue lines, 112 yellow, 112 pink. Melodies: 101 phrases, each 5–8 notes, with stored rhythms and minor-scale harmony.
+
+Each automatic turn has a 5% chance of a character reaction: blue’s descending scream, yellow’s rising sigh, or pink’s rapid high giggle. Pink slides between pitches; yellow retains unfiltered decimator grit above a 65 Hz rumble cutoff.

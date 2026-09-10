@@ -1,9 +1,10 @@
 import { newLines } from './dialogue.js';
 import { melodies } from './melodies.js';
-import { minorNote, decimatorSettings, ensemble } from './music.js';
+import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch } from './music.js';
 const $ = id => document.getElementById(id);
 let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
+const previousPitch = [null,null,null];
 const blueLines = ['Oh. You are here.', 'I was thinking about nothing.', 'There is a small sound inside my head.', 'I have been here the whole time.', 'Do you think the room can hear us?', 'I almost remembered something.', 'That was a thought. It has gone now.', 'I like the space between the notes.', 'This is my face. It does this.', 'Sometimes I count the quiet.', 'One. Two. No, start again.', 'I wonder what blue sounds like.', 'I could stay like this for a while.', 'Something is humming. It might be me.', 'I had a dream about a very small door.', 'Hello again, probably.', 'I am practicing being here.', 'A little noise. For no reason.', 'I do not have anywhere to be.', 'Was that a joke?'];
 const heads = [
   {id:'blue',pitch:100,lines:blueLines},
@@ -17,60 +18,91 @@ async function audio() {
   if(!ctx){ctx=new AudioContext();master=ctx.createGain();master.gain.value=.1575;const limiter=ctx.createDynamicsCompressor();master.connect(limiter);limiter.connect(ctx.destination)}
   await ctx.resume();
 }
-function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk', level=1) {
+function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk', level=1, contour) {
+  if(voice===2&&!contour)contour={from:previousPitch[voice]??hz*.8,to:hz,seconds:Math.min(.24,duration*.6)};
+  previousPitch[voice]=hz;
   const frame=$(heads[voice].id+'Frames');
   const delay=Math.max(0,(at-ctx.currentTime)*1000);
-  later(()=>{ frame.style.backgroundPosition=kind==='laugh'?'50% 0':kind==='sing'?'100% 0':'0 0'; frame.style.opacity='1'; },delay);
+  later(()=>{ frame.style.backgroundPosition=['laugh','giggle'].includes(kind)?'50% 0':['sing','scream','sigh'].includes(kind)?'100% 0':'0 0'; frame.style.opacity='1'; },delay);
   later(()=>{ frame.style.opacity='0'; },delay+duration*1000);
-  if(voice!==0){texture(hz,duration,at,vowel,voice,kind,level);return}
+  if(voice!==0){texture(hz,duration,at,vowel,voice,kind,level,contour);return}
   const osc=ctx.createOscillator(), filter=ctx.createBiquadFilter(), gain=ctx.createGain();
-  osc.type=type;osc.frequency.setValueAtTime(hz,at);osc.frequency.linearRampToValueAtTime(hz*(kind==='sing'?1:.96),at+duration);
-  filter.type='bandpass';filter.frequency.setValueAtTime([650,1100,1800,850][vowel%4],at);filter.Q.value=3;
+  osc.type=type;osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);
+  filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?350:[650,1100,1800,850][vowel%4],at);filter.Q.value=kind==='scream'?.7:3;
   gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*level,at+.009);gain.gain.setValueAtTime(.42*level,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
   osc.connect(filter);filter.connect(gain);gain.connect(master);sources.add(osc);
   osc.onended=()=>{sources.delete(osc);osc.disconnect();filter.disconnect();gain.disconnect()};osc.start(at);osc.stop(at+duration+.01);
 }
 // Yellow decimates both noise and pulse; its clock and bit depth follow pitch.
-function texture(hz,duration,at,vowel,voice,kind,level){
+function texture(hz,duration,at,vowel,voice,kind,level,contour){
   const rate=voice===1?ctx.sampleRate:8000, length=Math.ceil((duration+.02)*rate), buffer=ctx.createBuffer(1,length,rate), out=buffer.getChannelData(0);
   if(voice===1){
     let held=0, clock=1, phase=0;
     for(let i=0;i<length;i++){
-      const pitch=hz*(kind==='sing'?1:1-.12*i/length);
+      const pitch=contour?glidePitch(contour.from,contour.to,i/rate,contour.seconds):hz*(kind==='sing'?1:1-.12*i/length);
       const settings=decimatorSettings(pitch), steps=2**settings.bits-1;
       phase+=pitch/rate;
       if(clock>=1){
         clock%=1;
         const pulse=Math.sin(2*Math.PI*phase)>0?1:-1;
         const noise=Math.random()*2-1;
-        const sample=kind==='sing'?pulse*.8+noise*.12:pulse*.38+noise*.6;
+        const sample=kind==='sing'?pulse*.8+noise*.12:kind==='sigh'?pulse*.16+noise*.8:pulse*.38+noise*.6;
         held=Math.round((sample+1)*.5*steps)/steps*2-1;
       }
       clock+=settings.sampleRate/rate;out[i]=held;
     }
   }else{
     const size=256, hop=128, formant=[900,1400,2100,1100][vowel%4];
-    // Inverse spectral synthesis: only coarse harmonic bins survive each window.
+    const phases=new Float64Array(length), pitches=new Float32Array(length);
+    let phase=0;
+    for(let i=0;i<length;i++){
+      const pitch=contour?glidePitch(contour.from,contour.to,i/rate,contour.seconds):hz;
+      pitches[i]=pitch;phase+=2*Math.PI*pitch/rate;phases[i]=phase;
+    }
+    // Coarse spectral amplitudes retain the thin voice; continuous phase lets pitch slide.
     for(let start=-hop;start<length;start+=hop){
-      const fundamental=kind==='sing'?hz:hz*(1+.025*Math.sin(start/rate*28));
+      const fundamental=pitches[Math.min(length-1,Math.max(0,start+hop))];
       for(let harmonic=1;harmonic<=14;harmonic++){
-        const bin=kind==='sing'?fundamental*harmonic/(rate/size):Math.round(fundamental*harmonic/(rate/size));if(bin>=size/2)break;
-        const f=bin*rate/size;const weight=(Math.exp(-(((f-formant)/550)**2))+.35*Math.exp(-(((f-2700)/450)**2))+.18)/harmonic;
-        for(let j=0;j<size;j++){const i=start+j;if(i>=0&&i<length)out[i]+=Math.sin(2*Math.PI*bin*i/size)*weight*(.5-.5*Math.cos(2*Math.PI*j/size))*.8}
+        const f=fundamental*harmonic;if(f>=rate/2)break;
+        const raw=(Math.exp(-(((f-formant)/550)**2))+.35*Math.exp(-(((f-2700)/450)**2))+.18)/harmonic;
+        const weight=Math.round(raw*32)/32;
+        for(let j=0;j<size;j++){const i=start+j;if(i>=0&&i<length)out[i]+=Math.sin(phases[i]*harmonic)*weight*(.5-.5*Math.cos(2*Math.PI*j/size))*.8}
       }
     }
   }
   const source=ctx.createBufferSource(), gain=ctx.createGain(), filter=ctx.createBiquadFilter();source.buffer=buffer;
-  filter.type=voice===1?'lowpass':'highpass';filter.frequency.value=voice===1?Math.min(6000,decimatorSettings(hz).sampleRate*.6):450;
-  gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime((voice===1?.5:1.1)*level,at+.008);gain.gain.setValueAtTime((voice===1?.4:.9)*level,at+duration*.7);gain.gain.linearRampToValueAtTime(0,at+duration);
+  filter.type='highpass';filter.frequency.value=voice===1?65:450;filter.Q.value=.7;
+  gain.gain.setValueAtTime(0,at);
+  if(kind==='sigh'){
+    gain.gain.linearRampToValueAtTime(.45*level,at+.18);
+    gain.gain.exponentialRampToValueAtTime(.018*level,at+duration-.05);
+  }else{
+    gain.gain.linearRampToValueAtTime((voice===1?.42:1.1)*level,at+.008);
+    gain.gain.setValueAtTime((voice===1?.34:.9)*level,at+duration*.7);
+  }
+  gain.gain.linearRampToValueAtTime(0,at+duration);
   source.connect(filter);filter.connect(gain);gain.connect(master);sources.add(source);source.onended=()=>{sources.delete(source);source.disconnect();filter.disconnect();gain.disconnect()};source.start(at);source.stop(at+duration+.02);
 }
-function cancel(){heads.forEach(h=>$(h.id+'Frames').style.opacity='0');run++;clearTimeout(nextTimer);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sources){try{s.stop()}catch{}}sources.clear();}
-function schedule(){if(awake)nextTimer=setTimeout(()=>{active=(active+1)%heads.length;perform(Math.random()<.13?'laugh':Math.random()<.15?'sing':'talk')},1800+Math.random()*2600)}
+function cancel(){previousPitch.fill(null);heads.forEach(h=>$(h.id+'Frames').style.opacity='0');run++;clearTimeout(nextTimer);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sources){try{s.stop()}catch{}}sources.clear();}
+function schedule(){if(awake)nextTimer=setTimeout(()=>{active=(active+1)%heads.length;perform(automaticAction())},1800+Math.random()*2600)}
 function finish(duration,token){later(()=>{if(token!==run)return;schedule()},duration*1000+80)}
 function perform(kind){
   cancel();const token=run;let t=ctx.currentTime+.04;const start=t;const pitch=heads[active].pitch;const lines=heads[active].lines;heads.forEach(h=>$(h.id+'Subtitle').textContent='');
-  if(kind==='talk'){
+  if(kind==='reaction'){
+    if(active===0){
+      subtitle().textContent='[ aaaaaah — ]';
+      tone(1600,2.8,t,0,'sawtooth',0,'scream',.32,{from:1600,to:150,seconds:2.8});t+=2.8;
+    }else if(active===1){
+      subtitle().textContent='[ sigh ]';
+      tone(92,1.6,t,0,'square',1,'sigh',.9,{from:92,to:120,seconds:1.6});t+=1.6;
+    }else{
+      subtitle().textContent='[ hi hi hi hi hi! ]';
+      for(let i=0;i<12;i++){
+        const hz=460+Math.sin(i*1.8)*65;
+        tone(hz,.045,t,i%3,'square',2,'giggle',.7,{from:hz*1.12,to:hz,seconds:.045});t+=.073;
+      }
+    }
+  }else if(kind==='talk'){
     let i=Math.floor(Math.random()*lines.length);if(i===heads[active].lastLine)i=(i+1)%lines.length;heads[active].lastLine=i;
     const words=lines[i].split(' ');let text='';
     for(const word of words){const shown=(text+=(text?' ':'')+word);later(()=>{subtitle().textContent=shown},(t-ctx.currentTime)*1000);
