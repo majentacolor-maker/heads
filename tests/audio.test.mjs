@@ -14,6 +14,7 @@ test('ensembles can choose one, two or three distinct heads',()=>{
   }
 });
 test('all harmony parts stay in C natural minor, across vocal registers',()=>{
+  assert.equal(minorNote(0,1).hz,minorNote(0,0).hz/8);
   for(const voice of [0,1,2])for(let degree=0;degree<14;degree++){
     const note=minorNote(degree,voice);const midi=69+12*Math.log2(note.hz/440);
     assert(Math.abs(midi-Math.round(midi))<1e-9);assert(minorScale.includes(Math.round(midi)%12));

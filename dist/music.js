@@ -2,7 +2,7 @@ export const minorScale = [0, 2, 3, 5, 7, 8, 10];
 const noteNames = ['C', 'C♯', 'D', 'E♭', 'E', 'F', 'F♯', 'G', 'A♭', 'A', 'B♭', 'B'];
 export function minorNote(degree, voice) {
   const step = ((degree % 7) + 7) % 7;
-  const midi = 48 + minorScale[step] + 12 * Math.floor(degree / 7) + [0, -12, 12][voice];
+  const midi = 48 + minorScale[step] + 12 * Math.floor(degree / 7) + [0, -36, 12][voice];
   return { hz: 440 * 2 ** ((midi - 69) / 12), name: noteNames[midi % 12] };
 }
 export function decimatorSettings(hz) {
