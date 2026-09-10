@@ -26,7 +26,7 @@ function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk
   previousPitch[voice]=hz;
   const frame=$(heads[voice].id+'Frames');
   const delay=Math.max(0,(at-ctx.currentTime)*1000);
-  if(!exportController){later(()=>{ frame.style.backgroundPosition=['laugh','giggle'].includes(kind)?'50% 0':['sing','scream','sigh'].includes(kind)?'100% 0':'0 0'; frame.style.opacity='1'; },delay);
+  if(!exportController){later(()=>{ frame.style.backgroundPosition=['scream','sigh','giggle'].includes(kind)?'100% 100%':kind==='laugh'?'100% 0':kind==='sing'?'0 100%':'0 0'; frame.style.opacity='1'; },delay);
   later(()=>{ frame.style.opacity='0'; },delay+duration*1000);}
   if(voice!==0){texture(hz,duration,at,vowel,voice,kind,level,contour);return}
   const osc=ctx.createOscillator(), filter=ctx.createBiquadFilter(), gain=ctx.createGain();
@@ -118,13 +118,13 @@ function perform(kind){
   cancel();const token=run;let t=ctx.currentTime+.04;const start=t;const pitch=heads[active].pitch;const lines=heads[active].lines;heads.forEach(h=>$(h.id+'Subtitle').textContent='');
   if(kind==='reaction'){
     if(active===0){
-      subtitle().textContent='[ aaaaaah — ]';
+      subtitle().textContent='*screams*';
       tone(120,2.8,t,0,'sawtooth',0,'scream',.32);t+=2.8;
     }else if(active===1){
-      subtitle().textContent='[ sigh ]';
+      subtitle().textContent='*sighs*';
       tone(0,1.6,t,0,'square',1,'sigh',.9);t+=1.6;
     }else{
-      subtitle().textContent='[ hi hi hi hi hi! ]';
+      subtitle().textContent='*giggles*';
       for(let i=0;i<12;i++){
         const hz=460+Math.sin(i*1.8)*65;
         tone(hz,.045,t,i%3,'square',2,'giggle',.7,{from:hz*1.12,to:hz,seconds:.045});t+=.073;
@@ -142,7 +142,7 @@ function perform(kind){
     if(kind==='laugh'){
       voices.forEach((voice,part)=>{
         let cursor=start+part*.055;
-        later(()=>{$(heads[voice].id+'Subtitle').textContent='[ ha. ha. ha. ]'},(cursor-ctx.currentTime)*1000);
+        later(()=>{$(heads[voice].id+'Subtitle').textContent='*laughs*'},(cursor-ctx.currentTime)*1000);
         const count=5+Math.floor(Math.random()*4);
         for(let i=0;i<count;i++){
           const d=.085+Math.random()*.045;

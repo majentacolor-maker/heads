@@ -6,7 +6,7 @@ Click Wake. The head autonomously speaks scripted thoughts, laughs, and sings us
 
 WAKE starts autonomous playback. SLEEP stops it. Space toggles sleep. Hidden tabs sleep automatically.
 
-`dist/face.png` is the supplied reference. `dist/face-frames.png` contains edited talking, laughter, and singing frames.
+`dist/face.png`, `dist/yellow.png`, and `dist/pink.png` are the supplied faces. Their matching `-frames.png` sheets use a 2×2 grid: talking, laughing, singing, and the character’s scream, sigh, or giggle. Asset prompts are recorded in `asset-prompts.md`.
 
 Check syntax with `npm run check`.
 

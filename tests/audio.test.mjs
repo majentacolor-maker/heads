@@ -49,6 +49,8 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
     for(const entry of h.pending.values())if(entry.ms<=155)entry.fn();
     for(const voice of ['blue','yellow','pink']){
       assert.equal(h.elements.get(voice+'Frames').style.opacity,'1');
+      assert.equal(h.elements.get(voice+'Frames').style.backgroundPosition,kind==='sing'?'0 100%':'100% 0');
+      if(kind==='laugh')assert.equal(h.elements.get(voice+'Subtitle').textContent,'*laughs*');
       assert(h.elements.get(voice+'Subtitle').textContent.length>0);
     }
     for(const data of h.buffers){assert(data.every(Number.isFinite));assert(data.some(x=>x!==0));}
@@ -72,12 +74,14 @@ test('pitch glides are continuous, directional, and settle at the destination',(
 });
 test('all reactions produce audio with matching subtitles and cancel cleanly',async()=>{
   const h=harness();
-  for(const [voice,label,count] of [[0,'[ aaaaaah — ]',1],[1,'[ sigh ]',1],[2,'[ hi hi hi hi hi! ]',12]]){
+  for(const [voice,label,count] of [[0,'*screams*',1],[1,'*sighs*',1],[2,'*giggles*',12]]){
     h.played.length=0;
     vm.runInContext(`active=${voice}`,h.context);
     await vm.runInContext("wake('reaction')",h.context);
     assert.equal(h.played.length,count);
     assert.equal(h.elements.get(['blue','yellow','pink'][voice]+'Subtitle').textContent,label);
+    for(const entry of h.pending.values())if(entry.ms<=41)entry.fn();
+    assert.equal(h.elements.get(['blue','yellow','pink'][voice]+'Frames').style.backgroundPosition,'100% 100%');
     if(voice===2)for(let i=1;i<h.played.length;i++)assert(Math.abs(h.played[i].at-h.played[i-1].at-.073)<1e-8);
     for(const data of h.buffers)assert(data.every(Number.isFinite));
     vm.runInContext('sleep()',h.context);assert.equal(h.pending.size,0);

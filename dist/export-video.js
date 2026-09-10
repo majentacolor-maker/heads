@@ -11,9 +11,9 @@ async function artwork(){
   return Promise.all(fileNames.map(async([still,sprite],voice)=>{
     const [image,sheet]=await Promise.all([loadImage(still),loadImage(sprite)]);
     const mouth=surface(),pen=mouth.getContext('2d');
-    pen.drawImage(sheet,0,0,sheet.width/3,sheet.height,0,0,SIZE,SIZE);
+    pen.drawImage(sheet,0,0,sheet.width/2,sheet.height/2,0,0,SIZE,SIZE);
     pen.globalCompositeOperation='destination-in';
-    const [rx,ry,y]=voice===0?[.23,.16,.75]:voice===1?[.24,.13,.8]:[.24,.13,.82];
+    const [rx,ry,y]=voice===0?[.28,.18,.79]:voice===1?[.30,.19,.76]:[.27,.18,.73];
     pen.save();pen.translate(SIZE*.5,SIZE*y);pen.scale(SIZE*rx,SIZE*ry);
     const mask=pen.createRadialGradient(0,0,.55,0,0,1);mask.addColorStop(0,'#fff');mask.addColorStop(1,'transparent');pen.fillStyle=mask;pen.fillRect(-2,-2,4,4);pen.restore();
     return {image,mouth};
