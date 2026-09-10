@@ -194,12 +194,10 @@ function perform(kind,options={}){
 }
 async function wake(kind='talk'){if(exportController||(closing&&awake))return;try{await audio();if(exportController)return;if(kind!=='talk')replyQueue=[];if(!awake){closing=false;closeAt=ctx.currentTime+48+Math.random()*4;awake=true;document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true')}perform(kind)}catch{subtitle().textContent='Audio unavailable. Try another browser.'}}
 function finishConversation(){
-  cancel();replyQueue=[];closeAt=Infinity;closing=true;awake=true;
-  heads.forEach(h=>$(h.id+'Subtitle').textContent='');
-  $('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true');document.body.classList.add('awake');
+  sleep();
 }
 function sleep(){replyQueue=[];awake=false;closing=false;closeAt=Infinity;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
-function toggle(){if(!exportController)awake?sleep():wake()}
+function toggle(){if(!exportController)return awake?sleep():wake()}
 $('power').onclick=toggle;
 document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.target.tagName==='BUTTON')return;if(e.code==='Space'){e.preventDefault();toggle()}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(exportController)exportController.abort();if(awake)sleep()}});

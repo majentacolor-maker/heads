@@ -65,7 +65,7 @@ test('automatic choices use 20% reactions, 22% laughter, 15% singing, and 43% sp
   for(let i=0;i<10000;i++)counts[automaticAction(()=>i/10000)]++;
   assert.deepEqual(counts,{reaction:2000,laugh:2200,sing:1500,talk:4300});
 });
-test('100 distinct closing lines end silently with SLEEP available',async()=>{
+test('100 distinct closing lines end silently with WAKE ready for a new conversation',async()=>{
   assert.equal(conclusions.length,100);
   assert.equal(new Set(conclusions.map(line=>line.text)).size,100);
   assert.equal(new Set(conclusions.map(line=>line.voice)).size,3);
@@ -79,11 +79,12 @@ test('100 distinct closing lines end silently with SLEEP available',async()=>{
   assert.equal(actions.length,2);assert.equal(actions[0].kind,'talk');
   assert(conclusions.some(line=>line.text===actions[0].text));
   assert.equal(actions[1].kind,'laugh');assert.deepEqual(Array.from(actions[1].voices),[0,1,2]);
-  assert.equal(vm.runInContext('awake',h.context),true);assert.equal(h.pending.size,0);
-  assert.equal(h.elements.get('power').textContent,'SLEEP');
-  h.elements.get('power').onclick();
-  assert.equal(vm.runInContext('awake',h.context),false);
+  assert.equal(vm.runInContext('awake',h.context),false);assert.equal(h.pending.size,0);
   assert.equal(h.elements.get('power').textContent,'WAKE');
+  await h.elements.get('power').onclick();
+  assert.equal(vm.runInContext('awake',h.context),true);
+  assert.equal(h.elements.get('power').textContent,'SLEEP');
+  vm.runInContext('sleep()',h.context);
 });
 test('interruptions allow a fade before stopping sources',async()=>{
   const h=harness();await vm.runInContext("wake('laugh')",h.context);
