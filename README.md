@@ -9,3 +9,5 @@ Wake starts autonomous playback. Laugh and Sing interrupt it briefly. Space togg
 `dist/face.png` is the supplied reference. `dist/face-frames.png` contains edited talking, laughter, and singing frames.
 
 Check syntax with `npm run check`.
+
+Singing uses C natural minor with random solos, duets, and trios. Laughter can overlap across the same ensembles. Yellow’s sample rate and bit depth rise with vocal pitch.
