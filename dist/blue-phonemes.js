@@ -29,6 +29,17 @@ export function speechTime(walk,sourceTime){
   return walk.duration;
 }
 
+export function syllableMouths(clip,walk){
+  const nuclei=clip.phonemes.filter(phone=>phone.vowel||phone.ipa.includes('\u0329'));
+  const starts=nuclei.map(phone=>speechTime(walk,Math.max(0,phone.start-.025)));
+  return nuclei.map((phone,index)=>{
+    const start=starts[index],next=starts[index+1];
+    const reset=next===undefined?walk.duration:next-Math.min(.055,(next-start)*.45);
+    const end=Math.min(reset,speechTime(walk,phone.end+.025));
+    return[start,Math.max(start,end)];
+  });
+}
+
 export function pronunciationMistakes(phonemes,donors=phonemes,random=Math.random){
   const sound=ipa=>ipa.replace(/[ˈˌː]/g,'');
   return phonemes.map(phoneme=>{

@@ -1,6 +1,6 @@
 import { exportVideo, mp4Mime } from './export-video.js';
 import {blueSpeechData,loadBlueSpeech,blueSingingData,loadBlueSinging} from './blue-speech.js';
-import {speechWalk,speechTime,singPhonemes,pronunciationMistakes,mispronounceSpeech} from './blue-phonemes.js';
+import {speechWalk,speechTime,syllableMouths,singPhonemes,pronunciationMistakes,mispronounceSpeech} from './blue-phonemes.js';
 import { exchanges, chooseLyrics, singingSyllables, chooseConclusion } from './conversation.js';
 import { newLines, blueLines } from './dialogue.js';
 import { melodies } from './melodies.js';
@@ -61,9 +61,9 @@ async function speakBlue(text,token,onComplete){
     const walk=speechWalk(info.duration);
     playBlueSpeech(imperfectSpeech(buffer,info),at,info.duration,walk);
     for(const word of info.words)later(()=>{$('blueSubtitle').textContent=word.text},(at-ctx.currentTime+speechTime(walk,word.at))*1000);
-    for(const [start,end] of info.activity){
-      later(()=>{frame.style.backgroundPosition='0 0';frame.style.opacity='1'},(at-ctx.currentTime+speechTime(walk,start))*1000);
-      later(()=>{frame.style.opacity='0'},(at-ctx.currentTime+speechTime(walk,end))*1000);
+    for(const [start,end] of syllableMouths(info,walk)){
+      later(()=>{frame.style.backgroundPosition='0 0';frame.style.opacity='1'},(at-ctx.currentTime+start)*1000);
+      later(()=>{frame.style.opacity='0'},(at-ctx.currentTime+end)*1000);
     }
     finish(info.duration+.04,token,onComplete);
   }catch(error){if(token===run){sleep();$('blueSubtitle').textContent=error.message;}}

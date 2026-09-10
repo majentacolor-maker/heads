@@ -1,7 +1,8 @@
+import {blueSpeechData} from '../dist/blue-speech-data.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {speechWalk,speechTime,singPhonemes,pronunciationMistakes,mispronounceSpeech} from '../dist/blue-phonemes.js';
+import {speechWalk,speechTime,syllableMouths,singPhonemes,pronunciationMistakes,mispronounceSpeech} from '../dist/blue-phonemes.js';
 import {blueSingingData} from '../dist/blue-singing-data.js';
 import {lyrics,singingSyllables,exchanges,conclusions} from '../dist/conversation.js';
 import {blueLines,newLines} from '../dist/dialogue.js';
@@ -83,4 +84,21 @@ test('pronunciation mistakes soften consonants and borrow different vowels witho
   assert(Math.abs(output[100]-source[100]*.2)<1e-6);assert.notEqual(output[350],source[350]);
   const choices=Array.from({length:1000},(_,i)=>pronunciationMistakes(phones,phones,()=>i/1000)[0]);
   assert.equal(choices.filter(phone=>phone.level!==undefined).length,125);
+});
+
+
+test('blue opens and closes for each syllable even through continuous or quiet speech',()=>{
+  for(const clip of Object.values(blueSpeechData)){
+    const walk=speechWalk(clip.duration,()=>.6),pulses=syllableMouths(clip,walk);
+    const nuclei=clip.phonemes.filter(p=>p.vowel||p.ipa.includes('\u0329'));
+    assert.equal(pulses.length,nuclei.length);
+    pulses.forEach(([start,end],index)=>{
+      assert(start>=0&&end>start&&end<=clip.duration);
+      assert(start<=speechTime(walk,nuclei[index].start));
+      if(index)assert(start>pulses[index-1][1]);
+    });
+  }
+  const clip={duration:1,activity:[],phonemes:[{ipa:'a',vowel:true,start:.1,end:.4},{ipa:'i',vowel:true,start:.4,end:.7},{ipa:'n\u0329',vowel:false,start:.7,end:.9}]};
+  const pulses=syllableMouths(clip,speechWalk(1,()=>.5));
+  assert.equal(pulses.length,3);assert(pulses[1][0]-pulses[0][1]>=.05);
 });
