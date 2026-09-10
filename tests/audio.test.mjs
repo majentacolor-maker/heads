@@ -57,12 +57,10 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
   }
 });
 
-test('reaction occupies exactly the first five percent of automatic choices',()=>{
-  assert.equal(automaticAction(()=>0),'reaction');
-  assert.equal(automaticAction(()=>.049999),'reaction');
-  assert.notEqual(automaticAction(()=>.05),'reaction');
-  let reactions=0;for(let i=0;i<10000;i++)if(automaticAction(()=>i/10000)==='reaction')reactions++;
-  assert.equal(reactions,500);
+test('automatic choices use 20% reactions, 22% laughter, 15% singing, and 43% speech',()=>{
+  const counts={reaction:0,laugh:0,sing:0,talk:0};
+  for(let i=0;i<10000;i++)counts[automaticAction(()=>i/10000)]++;
+  assert.deepEqual(counts,{reaction:2000,laugh:2200,sing:1500,talk:4300});
 });
 test('pitch glides are continuous, directional, and settle at the destination',()=>{
   for(const [from,to,duration] of [[1600,150,2.8],[92,120,1.6],[220,440,.24]]){

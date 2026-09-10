@@ -101,7 +101,7 @@ function schedule(){
   nextTimer=setTimeout(()=>{
     active=replyQueue.length?replyQueue[0].voice:(active+1)%heads.length;
     const action=automaticAction();
-    perform(replyQueue.length&&action!=='reaction'?'talk':action);
+    perform(action);
   },replying?250+Math.random()*450:1000+Math.random()*1500);
 }
 function finish(duration,token){later(()=>{if(token!==run)return;schedule()},duration*1000+80)}

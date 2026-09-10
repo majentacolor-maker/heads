@@ -17,7 +17,7 @@ export function ensemble(lead, random = Math.random) {
 }
 export function automaticAction(random = Math.random) {
   const roll = random();
-  return roll < .05 ? 'reaction' : roll < .18 ? 'laugh' : roll < .31 ? 'sing' : 'talk';
+  return roll < .20 ? 'reaction' : roll < .42 ? 'laugh' : roll < .57 ? 'sing' : 'talk';
 }
 export function glidePitch(from, to, time, duration) {
   const fraction = Math.max(0, Math.min(1, time / duration));

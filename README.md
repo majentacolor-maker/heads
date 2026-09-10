@@ -14,7 +14,7 @@ Singing uses C natural minor with random solos, duets, and trios. Laughter can o
 
 Dialogue: 120 blue lines, 112 yellow, 112 pink. Melodies: 101 phrases, each 5–8 notes, with stored rhythms and minor-scale harmony.
 
-Each automatic turn has a 5% chance of a character reaction: blue’s low jittering scream, yellow’s unpitched exhale, or pink’s rapid high giggle. Pink slides between pitches; yellow has no output filter, with 1–3 bit decimation and speech pitches down to 22 Hz.
+Each automatic turn has a 20% chance of a character reaction, 22% laughter, 15% singing, and 43% speech. Reactions are blue’s low jittering scream, yellow’s unpitched exhale, or pink’s rapid high giggle. Pending dialogue resumes on the next speech turn. Pink slides between pitches; yellow has no output filter, with 1–3 bit decimation and speech pitches down to 22 Hz.
 
 Singers share one lyric phrase, revealing a word per note above their individual note names. New conversations choose a linked exchange 75% of the time; the rest draw from the existing solo lines. Replies follow the scene's speakers with shorter pauses. Speech remains scripted, without an AI service.
 
