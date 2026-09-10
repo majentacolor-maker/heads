@@ -2,7 +2,7 @@ import { exportVideo, mp4Mime } from './export-video.js';
 import { exchanges, chooseLyrics } from './conversation.js';
 import { newLines } from './dialogue.js';
 import { melodies } from './melodies.js';
-import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch } from './music.js';
+import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable } from './music.js';
 const $ = id => document.getElementById(id);
 let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
@@ -32,7 +32,7 @@ function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk
   const osc=ctx.createOscillator(), filter=ctx.createBiquadFilter(), gain=ctx.createGain();
   osc.type=type;osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);
   filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?350:[650,1100,1800,850][vowel%4],at);filter.Q.value=kind==='scream'?.7:3;
-  gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*level,at+.009);gain.gain.setValueAtTime(.42*level,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
+  gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*level,at+Math.min(.009,duration*.2));gain.gain.setValueAtTime(.42*level,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
   osc.connect(filter);filter.connect(gain);gain.connect(master);sources.add(osc);
   osc.onended=()=>{sources.delete(osc);osc.disconnect();filter.disconnect();gain.disconnect()};osc.start(at);osc.stop(at+duration+.01);
 }
@@ -73,18 +73,20 @@ function texture(hz,duration,at,vowel,voice,kind,level,contour){
       }
     }
   }
-  const source=ctx.createBufferSource(), gain=ctx.createGain(), filter=ctx.createBiquadFilter();source.buffer=buffer;
-  filter.type='highpass';filter.frequency.value=voice===1?65:450;filter.Q.value=.7;
+  const source=ctx.createBufferSource(), gain=ctx.createGain();source.buffer=buffer;
+  const filter=voice===2?ctx.createBiquadFilter():null;
+  if(filter){filter.type='highpass';filter.frequency.value=450;filter.Q.value=.7;}
   gain.gain.setValueAtTime(0,at);
   if(kind==='sigh'){
     gain.gain.linearRampToValueAtTime(.45*level,at+.18);
     gain.gain.exponentialRampToValueAtTime(.018*level,at+duration-.05);
   }else{
-    gain.gain.linearRampToValueAtTime((voice===1?.42:1.1)*level,at+.008);
+    gain.gain.linearRampToValueAtTime((voice===1?.42:1.1)*level,at+Math.min(.008,duration*.2));
     gain.gain.setValueAtTime((voice===1?.34:.9)*level,at+duration*.7);
   }
   gain.gain.linearRampToValueAtTime(0,at+duration);
-  source.connect(filter);filter.connect(gain);gain.connect(master);sources.add(source);source.onended=()=>{sources.delete(source);source.disconnect();filter.disconnect();gain.disconnect()};source.start(at);source.stop(at+duration+.02);
+  if(filter){source.connect(filter);filter.connect(gain)}else source.connect(gain);
+  gain.connect(master);sources.add(source);source.onended=()=>{sources.delete(source);source.disconnect();filter?.disconnect();gain.disconnect()};source.start(at);source.stop(at+duration+.02);
 }
 function cancel(){previousPitch.fill(null);heads.forEach(h=>$(h.id+'Frames').style.opacity='0');run++;clearTimeout(nextTimer);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sources){try{s.stop()}catch{}}sources.clear();}
 function schedule(){
@@ -127,7 +129,7 @@ function perform(kind){
     const words=(spoken??lines[i]).split(' ');let text='';
     for(const word of words){const shown=(text+=(text?' ':'')+word);later(()=>{subtitle().textContent=shown},(t-ctx.currentTime)*1000);
       const n=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
-      for(let j=0;j<n;j++){const d=.065+Math.random()*.075;tone(pitch*(.8+Math.random()*.65),d,t,word.charCodeAt(j%word.length));t+=d+.025}t+=/[.,?]$/.test(word)?.25:.075;
+      for(let j=0;j<n;j++)for(const part of speechSyllable(active,pitch)){tone(part.hz,part.duration,t,word.charCodeAt(j%word.length));t+=part.duration+part.gap;}t+=/[.,?]$/.test(word)?.25:.075;
     }
   }else{
     const voices=ensemble(active), level=1/Math.sqrt(voices.length);

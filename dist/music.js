@@ -6,8 +6,8 @@ export function minorNote(degree, voice) {
   return { hz: 440 * 2 ** ((midi - 69) / 12), name: noteNames[midi % 12] };
 }
 export function decimatorSettings(hz) {
-  const pitch = Math.max(40, Math.min(1000, hz));
-  return { sampleRate: Math.min(12000, pitch * 12), bits: Math.max(2, Math.min(6, Math.round(2 + Math.log2(pitch / 55)))) };
+  const pitch = Math.max(20, Math.min(1000, hz));
+  return { sampleRate: pitch * 6, bits: pitch < 60 ? 1 : pitch < 180 ? 2 : 3 };
 }
 export function ensemble(lead, random = Math.random) {
   const count = 1 + Math.floor(random() * 3);
@@ -23,4 +23,18 @@ export function glidePitch(from, to, time, duration) {
   const fraction = Math.max(0, Math.min(1, time / duration));
   const smooth = fraction * fraction * (3 - 2 * fraction);
   return from * (to / from) ** smooth;
+}
+
+// Shared speech gestures keep live playback and MP4 exports in sync.
+export function speechSyllable(voice,basePitch,random=Math.random){
+  if(voice===1){
+    return [{hz:22*(180/22)**random(),duration:.085+random()*.12,gap:.025}];
+  }
+  const hz=basePitch*(.8+random()*.65);
+  if(voice===2&&random()<.5){
+    const count=3+Math.floor(random()*3),duration=.019+random()*.013;
+    return Array.from({length:count},()=>({hz,duration,gap:.012}));
+  }
+  const duration=voice===0&&random()<.3?.22+random()*.24:.065+random()*.075;
+  return [{hz,duration,gap:.025}];
 }

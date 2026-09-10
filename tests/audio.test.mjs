@@ -5,7 +5,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import { readFileSync } from 'node:fs';
-import { minorNote, minorScale, decimatorSettings, ensemble, automaticAction, glidePitch } from '../dist/music.js';
+import { minorNote, minorScale, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable } from '../dist/music.js';
 
 test('ensembles can choose one, two or three distinct heads',()=>{
   for(const lead of [0,1,2])for(const [random,count] of [[.1,1],[.5,2],[.99,3]]){
@@ -22,7 +22,7 @@ test('all harmony parts stay in C natural minor, across vocal registers',()=>{
 test('decimation clock and depth track pitch within bounds',()=>{
   const low=decimatorSettings(55), high=decimatorSettings(220);
   assert(high.sampleRate>low.sampleRate);assert(high.bits>low.bits);
-  assert.equal(decimatorSettings(1e6).sampleRate,12000);assert.equal(decimatorSettings(0).bits,2);
+  assert.equal(decimatorSettings(1e6).sampleRate,6000);assert.equal(decimatorSettings(0).bits,1);
 });
 function harness(){
   const elements=new Map(),pending=new Map(), played=[], buffers=[];let id=0;
@@ -30,7 +30,7 @@ function harness(){
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
   const node=()=>({gain:param(),frequency:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,minorNote,decimatorSettings,automaticAction,glidePitch,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
     AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
@@ -105,4 +105,14 @@ test('linked replies follow their scene speakers and sleep clears the conversati
   assert.equal(vm.runInContext('replyQueue.length',h.context),0);
   vm.runInContext('replyQueue=exchanges[1].slice();sleep()',h.context);
   assert.equal(vm.runInContext('replyQueue.length',h.context),0);
+});
+
+
+test('speech gestures add deep yellow pitches, pink stutters, and long blue holds',()=>{
+  assert(speechSyllable(1,78,()=>0)[0].hz<30);
+  assert(speechSyllable(1,78,()=>.999)[0].hz>170);
+  const stutter=speechSyllable(2,205,()=>.1);
+  assert(stutter.length>=3);assert(stutter.every(part=>part.duration+part.gap<.05));
+  assert(speechSyllable(0,100,()=>.1)[0].duration>.22);
+  assert(speechSyllable(0,100,()=>.9)[0].duration<.15);
 });

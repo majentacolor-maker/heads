@@ -1,3 +1,4 @@
+import { speechSyllable } from './music.js';
 import { exchanges } from './conversation.js';
 export const EXPORT_DURATION=90;
 export function makeExportPlan(random=Math.random){
@@ -15,9 +16,10 @@ export function makeExportPlan(random=Math.random){
         captions.push({at:cursor,voice,text:caption,turn:turnIndex});
         const count=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
         for(let j=0;j<count;j++){
-          const duration=.065+random()*.075;
-          tones.push({at:cursor,voice,hz:pitches[voice]*(.8+random()*.65),duration,vowel:word.charCodeAt(j%word.length)});
-          cursor+=duration+.025;
+          for(const part of speechSyllable(voice,pitches[voice],random)){
+            tones.push({at:cursor,voice,hz:part.hz,duration:part.duration,vowel:word.charCodeAt(j%word.length)});
+            cursor+=part.duration+part.gap;
+          }
         }
         cursor+=/[.,?!]$/.test(word)?.25:.075;
       }
