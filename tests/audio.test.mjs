@@ -1,3 +1,5 @@
+import {blueSingingData} from '../dist/blue-singing-data.js';
+import {speechWalk,speechTime,singPhonemes} from '../dist/blue-phonemes.js';
 import {blueSpeechData} from '../dist/blue-speech-data.js';
 import { exchanges, chooseLyrics, singingSyllables, chooseConclusion, conclusions, lyrics } from '../dist/conversation.js';
 import { newLines, blueLines } from '../dist/dialogue.js';
@@ -32,7 +34,7 @@ function harness(){
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
   const node=()=>({gain:param(),frequency:param(),playbackRate:param(),detune:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,blueLines,blueSpeechData,loadBlueSpeech:async(text,ctx)=>ctx.createBuffer(1,Math.ceil(blueSpeechData[text].duration*22050),22050),melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,vowelCode,blueVowelProfile,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,blueLines,blueSpeechData,blueSingingData,speechWalk,speechTime,singPhonemes,loadBlueSinging:async(word,ctx)=>{const bytes=readFileSync(new URL('../dist/'+blueSingingData[word.toLowerCase()].file,import.meta.url));const buffer=ctx.createBuffer(1,(bytes.length-44)/2,22050),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=bytes.readInt16LE(44+i*2)/32768;return buffer},loadBlueSpeech:async(text,ctx)=>ctx.createBuffer(1,Math.ceil(blueSpeechData[text].duration*22050),22050),melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,vowelCode,blueVowelProfile,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
     AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,duration:length/rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
@@ -46,7 +48,7 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
     h.played.length=0;
     await vm.runInContext(`wake('${kind}')`,h.context);
     assert(h.played.length>=15);
-    assert.equal(h.played.filter(e=>e.at===.04).length,kind==='sing'?5:2);
+    assert.equal(h.played.filter(e=>e.at===.04).length,kind==='sing'?4:2);
     // Execute initial subtitle and mouth callbacks only, before any mouth closes.
     for(const entry of h.pending.values())if(entry.ms<=(kind==='sing'?41:155))entry.fn();
     for(const voice of ['blue','yellow','pink']){
@@ -61,14 +63,24 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
   }
 });
 
+test('sleep during sung-word loading prevents any late audio or captions',async()=>{
+  const h=harness();
+  vm.runInContext('let release;const waiting=new Promise(resolve=>release=resolve);loadBlueSinging=()=>waiting;globalThis.releaseSong=()=>release({});',h.context);
+  const starting=vm.runInContext("wake('sing')",h.context);
+  await new Promise(resolve=>setImmediate(resolve));
+  vm.runInContext('sleep();releaseSong()',h.context);await starting;
+  assert.equal(h.played.length,0);assert.equal(h.pending.size,0);
+  assert.equal(h.elements.get('power').textContent,'WAKE');
+});
+
 test('automatic choices use 20% reactions, 22% laughter, 15% singing, and 43% speech',()=>{
   const counts={reaction:0,laugh:0,sing:0,talk:0};
   for(let i=0;i<10000;i++)counts[automaticAction(()=>i/10000)]++;
   assert.deepEqual(counts,{reaction:2000,laugh:2200,sing:1500,talk:4300});
 });
-test('100 distinct closing lines end silently with WAKE ready for a new conversation',async()=>{
-  assert.equal(conclusions.length,100);
-  assert.equal(new Set(conclusions.map(line=>line.text)).size,100);
+test('1000 distinct closing lines end silently with WAKE ready for a new conversation',async()=>{
+  assert.equal(conclusions.length,1000);
+  assert.equal(new Set(conclusions.map(line=>line.text)).size,1000);
   assert.equal(new Set(conclusions.map(line=>line.voice)).size,3);
   const h=harness();await vm.runInContext('wake()',h.context);
   vm.runInContext(`cancel();ctx.currentTime=55;closeAt=50;
@@ -151,7 +163,7 @@ test('sung syllables share timing across voices and fit within each melody note'
   assert.equal(singingSyllables('silence').length,2);
   assert.equal(singingSyllables('lights').length,1);
   const h=harness();
-  vm.runInContext("chooseLyrics=length=>Array(length).fill('beautiful');globalThis.sung=[];tone=(hz,duration,at,vowel,type,voice)=>sung.push({hz,duration,at,voice})",h.context);
+  vm.runInContext("chooseLyrics=length=>Array(length).fill('beautiful');globalThis.sung=[];playBlueSyllable=(buffer,phonemes,hz,duration,at)=>sung.push({hz,duration,at,voice:0});tone=(hz,duration,at,vowel,type,voice)=>sung.push({hz,duration,at,voice})",h.context);
   await vm.runInContext("wake('sing')",h.context);
   const notes=vm.runInContext('sung',h.context), melody=melodies[Math.floor(.99*melodies.length)];
   assert.equal(notes.length,melody.degrees.length*3*3);

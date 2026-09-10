@@ -1,5 +1,6 @@
 import { exportVideo, mp4Mime } from './export-video.js';
-import {blueSpeechData,loadBlueSpeech} from './blue-speech.js';
+import {blueSpeechData,loadBlueSpeech,blueSingingData,loadBlueSinging} from './blue-speech.js';
+import {speechWalk,speechTime,singPhonemes} from './blue-phonemes.js';
 import { exchanges, chooseLyrics, singingSyllables, chooseConclusion } from './conversation.js';
 import { newLines, blueLines } from './dialogue.js';
 import { melodies } from './melodies.js';
@@ -31,11 +32,15 @@ function trackSource(source,envelope,filter){
   };
   source.onended=()=>{sources.delete(source);source.disconnect();filter?.disconnect();envelope.disconnect();gate.disconnect()};
 }
-function playBlueSpeech(buffer,at,duration){
+function playBlueSpeech(buffer,at,duration,walk=speechWalk(duration),level=1){
   for(const [cents,balance] of [[0,1],[7,.35]]){
     const source=ctx.createBufferSource(),gain=ctx.createGain();
-    source.buffer=buffer;source.playbackRate.value=buffer.duration/duration;source.detune.value=cents;
-    const volume=2.2*balance;
+    source.buffer=buffer;source.playbackRate.value=buffer.duration/duration*(walk?.rate??1);
+    if(walk){
+      source.detune.setValueAtTime(walk.points[0].cents+cents,at);
+      for(const point of walk.points.slice(1))source.detune.linearRampToValueAtTime(point.cents+cents,at+point.at/walk.duration*duration);
+    }else source.detune.value=cents;
+    const volume=2.2*balance*level;
     gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(volume,at+.012);
     gain.gain.setValueAtTime(volume,at+duration-.02);gain.gain.linearRampToValueAtTime(0,at+duration);
     source.connect(gain);trackSource(source,gain);source.start(at);source.stop(at+duration+.01);
@@ -46,14 +51,23 @@ async function speakBlue(text,token,onComplete){
     const info=blueSpeechData[text],buffer=await loadBlueSpeech(text,ctx);
     if(token!==run||!awake||exportController)return;
     const at=ctx.currentTime+.04,frame=$('blueFrames');
-    playBlueSpeech(buffer,at,info.duration);
-    for(const word of info.words)later(()=>{$('blueSubtitle').textContent=word.text},(at-ctx.currentTime+word.at)*1000);
+    const walk=speechWalk(info.duration);
+    playBlueSpeech(buffer,at,info.duration,walk);
+    for(const word of info.words)later(()=>{$('blueSubtitle').textContent=word.text},(at-ctx.currentTime+speechTime(walk,word.at))*1000);
     for(const [start,end] of info.activity){
-      later(()=>{frame.style.backgroundPosition='0 0';frame.style.opacity='1'},(at-ctx.currentTime+start)*1000);
-      later(()=>{frame.style.opacity='0'},(at-ctx.currentTime+end)*1000);
+      later(()=>{frame.style.backgroundPosition='0 0';frame.style.opacity='1'},(at-ctx.currentTime+speechTime(walk,start))*1000);
+      later(()=>{frame.style.opacity='0'},(at-ctx.currentTime+speechTime(walk,end))*1000);
     }
     finish(info.duration+.04,token,onComplete);
   }catch(error){if(token===run){sleep();$('blueSubtitle').textContent=error.message;}}
+}
+function playBlueSyllable(buffer,phonemes,hz,duration,at,level){
+  const samples=singPhonemes(buffer.getChannelData(0),buffer.sampleRate,phonemes,hz,duration);
+  const sung=ctx.createBuffer(1,samples.length,buffer.sampleRate);sung.getChannelData(0).set(samples);
+  playBlueSpeech(sung,at,duration,null,level);
+  const frame=$('blueFrames'),delay=(at-ctx.currentTime)*1000;
+  later(()=>{frame.style.backgroundPosition='0 100%';frame.style.opacity='1'},delay);
+  later(()=>{frame.style.opacity='0'},delay+duration*1000);
 }
 function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk', level=1, contour) {
   if(voice===2&&!contour)contour={from:previousPitch[voice]??hz*.8,to:hz,seconds:Math.min(.24,duration*.6)};
@@ -163,7 +177,7 @@ function conclude(){
     later(()=>perform('laugh',{voices:[0,1,2],onComplete:()=>later(finishConversation,800)}),350);
   }});
 }
-function perform(kind,options={}){
+async function perform(kind,options={}){
   let spoken=options.text;
   if(kind==='talk'&&spoken===undefined){
     if(!replyQueue.length&&Math.random()<.75){
@@ -173,7 +187,7 @@ function perform(kind,options={}){
     }
     if(replyQueue.length){const reply=replyQueue.shift();active=reply.voice;spoken=reply.text;}
   }
-  cancel();const token=run;let t=ctx.currentTime+.04;const start=t;const pitch=heads[active].pitch;const lines=heads[active].lines;heads.forEach(h=>$(h.id+'Subtitle').textContent='');
+  cancel();const token=run;let t=ctx.currentTime+.04,start=t;const pitch=heads[active].pitch;const lines=heads[active].lines;heads.forEach(h=>$(h.id+'Subtitle').textContent='');
   if(kind==='reaction'){
     if(active===0){
       subtitle().textContent='*screams*';
@@ -214,6 +228,14 @@ function perform(kind,options={}){
       const melody=melodies[choice], beatSeconds=60/(80+Math.random()*40);
       const offsets=[0,2,4], lyric=chooseLyrics(melody.degrees.length);
       const singers=voices.includes(1)?[1,...voices.filter(voice=>voice!==1)]:voices;
+      const sungWords=new Map();
+      if(singers.includes(0)){
+        try{
+          await Promise.all(lyric.map(async word=>sungWords.set(word,await loadBlueSinging(word,ctx))));
+        }catch(error){if(token===run){sleep();$('blueSubtitle').textContent=error.message;}return;}
+        if(token!==run||!awake||exportController)return;
+        t=start=ctx.currentTime+.04;
+      }
       for(let step=0;step<melody.degrees.length;step++){
         const degree=melody.degrees[step], duration=melody.beats[step]*beatSeconds;
         const syllables=singingSyllables(lyric[step]), syllableBeat=duration/syllables.length;
@@ -223,7 +245,8 @@ function perform(kind,options={}){
             const at=t+index*syllableBeat;
             const words=[...lyric.slice(0,step),syllables.slice(0,index+1).join('')].join(' ');
             later(()=>{$(heads[voice].id+'Subtitle').textContent=`${words}\n[ ${note.name} — ]`},(at-ctx.currentTime)*1000);
-            tone(note.hz,syllableBeat*.88,at,voice===0?vowelCode(syllable):(part+index)%4,'sawtooth',voice,'sing',level);
+            if(voice===0)playBlueSyllable(sungWords.get(lyric[step]),blueSingingData[lyric[step].toLowerCase()].syllables[index],note.hz,syllableBeat*.88,at,level);
+            else tone(note.hz,syllableBeat*.88,at,(part+index)%4,'sawtooth',voice,'sing',level);
           });
         });
         t+=duration;
@@ -253,7 +276,7 @@ async function renderExportAudio(plan){
     const limiter=offline.createDynamicsCompressor();master.connect(limiter);limiter.connect(offline.destination);
     previousPitch.fill(null);
     for(const event of plan.tones){
-      if(event.kind==='speech')playBlueSpeech(speech.get(event.text),event.at,event.duration);
+      if(event.kind==='speech')playBlueSpeech(speech.get(event.text),event.at,event.duration,event.walk);
       else tone(event.hz,event.duration,event.at,event.vowel,'square',event.voice,event.kind??'talk',event.level??1);
     }
   }finally{ctx=liveContext;master=liveMaster;}

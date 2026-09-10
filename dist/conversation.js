@@ -1,3 +1,4 @@
+import {surrealExchanges,surrealConclusions} from './surreal-dialogue.js';
 // Ordered replies. Each number identifies the speaking face: blue, yellow, pink.
 export const exchanges = [
   [[0,'What if we are only here because someone forgot to close us?'],[1,'Then I will make their indecision useful.'],[2,'Please do. I was planning to stay cute for a while.']],
@@ -152,3 +153,6 @@ export const conclusions = [
 export function chooseConclusion(random=Math.random){
   return conclusions[Math.floor(random()*conclusions.length)];
 }
+
+exchanges.push(...surrealExchanges);
+conclusions.push(...surrealConclusions);

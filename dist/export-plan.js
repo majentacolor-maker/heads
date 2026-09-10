@@ -1,6 +1,7 @@
 import { speechSyllable, laughPhrase, vowelCode } from './music.js';
 import { exchanges, chooseConclusion } from './conversation.js';
 import {blueSpeechData} from './blue-speech-data.js';
+import {speechWalk,speechTime} from './blue-phonemes.js';
 export const EXPORT_DURATION=60;
 export function makeExportPlan(random=Math.random){
   const candidates=exchanges.filter(turns=>new Set(turns.map(turn=>turn.voice)).size===3);
@@ -10,8 +11,9 @@ export function makeExportPlan(random=Math.random){
     if(voice===0){
       const clip=blueSpeechData[text];
       if(!clip)throw new Error('Blue speech is unavailable for this line.');
-      tones.push({at:cursor,voice,text,kind:'speech',duration:clip.duration,sourceDuration:clip.duration,activity:clip.activity});
-      for(const word of clip.words)captions.push({at:cursor+word.at,voice,text:word.text,turn:turnIndex});
+      const walk=speechWalk(clip.duration,random);
+      tones.push({at:cursor,voice,text,kind:'speech',duration:clip.duration,sourceDuration:clip.duration,walk,activity:clip.activity.map(pair=>pair.map(time=>speechTime(walk,time)))});
+      for(const word of clip.words)captions.push({at:cursor+speechTime(walk,word.at),voice,text:word.text,turn:turnIndex});
       cursor+=clip.duration+.45;return;
     }
     let caption='';
