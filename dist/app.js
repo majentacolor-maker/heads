@@ -39,15 +39,19 @@ function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk
   if(!exportController){later(()=>{ frame.style.backgroundPosition=['scream','sigh','giggle'].includes(kind)?'100% 100%':kind==='laugh'?'100% 0':kind==='sing'?'0 100%':'0 0'; frame.style.opacity='1'; },delay);
   later(()=>{ frame.style.opacity='0'; },delay+duration*1000);}
   if(voice!==0){texture(hz,duration,at,vowel,voice,kind,level,contour);return}
-  const osc=ctx.createOscillator(), filter=ctx.createBiquadFilter(), gain=ctx.createGain();
-  osc.type=type;
-  if(kind==='scream'){
-    for(const point of screamJitter(duration))osc.frequency.setValueAtTime(point.hz,at+point.at);
-  }else{osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);}
-  filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?35:[650,1100,1800,850][vowel%4],at);filter.Q.value=kind==='scream'?.7:3;
-  gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*level,at+Math.min(.012,duration*.25));gain.gain.linearRampToValueAtTime(.42*level,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
-  osc.connect(filter);filter.connect(gain);trackSource(osc,gain,filter);
-  osc.start(at);osc.stop(at+duration+.01);
+  const jitter=kind==='scream'?screamJitter(duration):null;
+  for(const [cents,balance] of [[0,1],[7,.7]]){
+    const osc=ctx.createOscillator(),filter=ctx.createBiquadFilter(),gain=ctx.createGain();
+    osc.type=type;osc.detune.value=cents;
+    if(jitter){
+      for(const point of jitter)osc.frequency.setValueAtTime(point.hz,at+point.at);
+    }else{osc.frequency.setValueAtTime(contour?.from??hz,at);osc.frequency.exponentialRampToValueAtTime(contour?.to??hz*(kind==='sing'?1:.96),at+duration);}
+    filter.type=kind==='scream'?'highpass':'bandpass';filter.frequency.setValueAtTime(kind==='scream'?35:[650,1100,1800,850][vowel%4],at);filter.Q.value=kind==='scream'?.7:3;
+    const volume=level*1.3*balance;
+    gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(.6*volume,at+Math.min(.012,duration*.25));gain.gain.linearRampToValueAtTime(.42*volume,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
+    osc.connect(filter);filter.connect(gain);trackSource(osc,gain,filter);
+    osc.start(at);osc.stop(at+duration+.01);
+  }
 }
 // Yellow decimates both noise and pulse; its clock and bit depth follow pitch.
 function texture(hz,duration,at,vowel,voice,kind,level,contour){

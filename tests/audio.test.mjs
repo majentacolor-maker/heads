@@ -29,7 +29,7 @@ function harness(){
   const elements=new Map(),pending=new Map(), played=[], buffers=[];let id=0;
   const element=name=>{if(!elements.has(name))elements.set(name,{style:{},textContent:'',setAttribute(){}});return elements.get(name)};
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
-  const node=()=>({gain:param(),frequency:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
+  const node=()=>({gain:param(),frequency:param(),detune:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
   const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
     document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
@@ -45,7 +45,7 @@ test('trio song and laugh schedule overlapping audio and independent mouth frame
     h.played.length=0;
     await vm.runInContext(`wake('${kind}')`,h.context);
     assert(h.played.length>=15);
-    assert.equal(h.played.filter(e=>e.at===.04).length,kind==='sing'?3:1);
+    assert.equal(h.played.filter(e=>e.at===.04).length,kind==='sing'?4:2);
     // Execute initial subtitle and mouth callbacks only, before any mouth closes.
     for(const entry of h.pending.values())if(entry.ms<=(kind==='sing'?41:155))entry.fn();
     for(const voice of ['blue','yellow','pink']){
@@ -93,6 +93,17 @@ test('interruptions allow a fade before stopping sources',async()=>{
   assert(times.length>0);assert(times.every(at=>at===.02));
   assert.equal(h.pending.size,0);
 });
+test('blue uses a synchronized detuned double with independent cleanup',async()=>{
+  const h=harness();await vm.runInContext('audio()',h.context);
+  vm.runInContext("tone(100,.3,.04,0,'square',0)",h.context);
+  assert.equal(h.played.length,2);
+  assert.deepEqual(h.played.map(event=>event.node.detune.value),[0,7]);
+  assert(h.played.every(event=>event.at===.04));
+  h.played[0].node.onended();
+  assert.equal(vm.runInContext('sources.size',h.context),1);
+  vm.runInContext('sleep()',h.context);
+  assert.equal(vm.runInContext('sources.size',h.context),0);
+});
 test('pitch glides are continuous, directional, and settle at the destination',()=>{
   for(const [from,to,duration] of [[1600,150,2.8],[92,120,1.6],[220,440,.24]]){
     assert.equal(glidePitch(from,to,0,duration),from);
@@ -103,7 +114,7 @@ test('pitch glides are continuous, directional, and settle at the destination',(
 });
 test('all reactions produce audio with matching subtitles and cancel cleanly',async()=>{
   const h=harness();
-  for(const [voice,label,count] of [[0,'*screams*',1],[1,'*sighs*',1],[2,'*giggles*',12]]){
+  for(const [voice,label,count] of [[0,'*screams*',2],[1,'*sighs*',1],[2,'*giggles*',12]]){
     h.played.length=0;
     vm.runInContext(`active=${voice}`,h.context);
     await vm.runInContext("wake('reaction')",h.context);
