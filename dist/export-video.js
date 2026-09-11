@@ -1,5 +1,5 @@
 import {makeExportPlan,frameAt} from './export-plan.js';
-import {characters,originalCast} from './cast.js';
+import {characters,originalCast,sharedCaption} from './cast.js';
 const WIDTH=1280,HEIGHT=720,SIZE=384,TOP=106;
 export function mp4Mime(Recorder=globalThis.MediaRecorder){
   if(!Recorder)return null;
@@ -37,9 +37,20 @@ function draw(pen,art,plan,time){
     const x=40+position*408;
     pen.drawImage(art[voice].image,x,TOP,SIZE,SIZE);
     if(state.mouths[voice])pen.drawImage(art[voice].mouths[state.frames[voice]],x,TOP);
-    pen.fillStyle='#fff';pen.font='16px Menlo, Monaco, monospace';pen.textAlign='center';pen.textBaseline='top';
-    wrappedLines(pen,state.captions[voice],SIZE-20).forEach((line,i)=>pen.fillText(line,x+SIZE/2,TOP+SIZE+26+i*23));
   }
+  const caption=sharedCaption(plan.cast.map(voice=>state.captions[voice]));
+  if(!caption)return;
+  const areaTop=TOP+SIZE,areaHeight=HEIGHT-areaTop;
+  let size=24,lines;
+  do{
+    pen.font=`${size}px Menlo, Monaco, monospace`;
+    lines=caption.split('\n').flatMap(line=>wrappedLines(pen,line,WIDTH-80));
+    if(lines.length*size*1.25<=areaHeight-32||size<=12)break;
+    size-=1;
+  }while(true);
+  pen.fillStyle='#fff';pen.textAlign='center';pen.textBaseline='middle';
+  const lineHeight=size*1.25,center=areaTop+areaHeight/2;
+  lines.forEach((line,i)=>pen.fillText(line,WIDTH/2,center+(i-(lines.length-1)/2)*lineHeight));
 }
 export async function exportVideo({context,renderAudio,stop,signal,onProgress,cast=originalCast}){
   const mime=mp4Mime();

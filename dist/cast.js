@@ -46,8 +46,16 @@ export function mountCast(container,cast){
     const [x,y,rx,ry]=head.mask,[dx,dy]=head.shift;
     frames.style.transform=`translate(${dx*100}%,${dy*100}%)`;
     frames.style.maskImage=`radial-gradient(ellipse ${rx*100}% ${ry*100}% at ${(x-dx)*100}% ${(y-dy)*100}%,#000 55%,transparent 100%)`;
-    const caption=document.createElement('p');caption.id=head.id+'Subtitle';caption.setAttribute('aria-live','polite');
+    const caption=document.createElement('p');caption.id=head.id+'Subtitle';caption.hidden=true;caption.setAttribute('aria-hidden','true');
     if(image.complete&&image.naturalWidth)stack.classList.add('ready');
     stack.append(image,frames);section.append(stack,caption);return section;
   }));
+}
+
+export function sharedCaption(captions){
+  const parts=captions.filter(Boolean).map(text=>text.split('\n'));
+  const words=[...new Set(parts.map(part=>part[0]))];
+  const current=words.filter(word=>!words.some(other=>other!==word&&other.startsWith(word))).join('\n');
+  const notes=[...new Set(parts.flatMap(part=>part.slice(1)).map(note=>note.replace(/[\[\]—]/g,'').trim()).filter(Boolean))];
+  return current+(notes.length?'\n[ '+notes.join(' · ')+' — ]':'');
 }

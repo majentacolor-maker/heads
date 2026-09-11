@@ -4,7 +4,7 @@ import {speechWalk,speechTime,syllableMouths,singPhonemes,pronunciationMistakes,
 import {chooseLyrics,singingSyllables} from './conversation.js';
 import { melodies } from './melodies.js';
 import { decimatorSettings, automaticAction, glidePitch, screamJitter, vowelCode, blueVowelProfile } from './music.js';
-import {characters,chooseCast,mountCast,nextVoice,castEnsemble,harmonyVoices} from './cast.js';
+import {characters,chooseCast,mountCast,nextVoice,castEnsemble,harmonyVoices,sharedCaption} from './cast.js';
 import {characterLines,scenesForCast,conclusionForCast} from './cast-dialogue.js';
 import {voiceNote,voiceSyllables,voiceLaugh,reactionPhrase,variantSamples} from './voice-variants.js';
 const $ = id => document.getElementById(id);
@@ -18,7 +18,13 @@ let cast=chooseCast(),castScenes=scenesForCast(cast);
 mountCast(document.querySelector('.heads'),cast);
 active=cast[0];
 const visibleHeads=()=>cast.map(voice=>heads[voice]);
-const subtitle=()=>$(heads[active].id+'Subtitle');
+const subtitle=(voice=active)=>({
+  get textContent(){return $(heads[voice].id+'Subtitle').textContent},
+  set textContent(text){
+    $(heads[voice].id+'Subtitle').textContent=text;
+    $('caption').textContent=sharedCaption(cast.map(v=>$(heads[v].id+'Subtitle').textContent));
+  }
+});
 function later(fn, ms) { const id=setTimeout(()=>{timers.delete(id);fn()},ms);timers.add(id);return id }
 async function audio() {
   if(!ctx){ctx=new AudioContext();master=ctx.createGain();master.gain.value=.1575;const limiter=ctx.createDynamicsCompressor();master.connect(limiter);limiter.connect(ctx.destination)}
@@ -62,13 +68,13 @@ async function speakBlue(text,token,onComplete,voice=active){
     const at=ctx.currentTime+.04,frame=$(heads[voice].id+'Frames');
     const walk=speechWalk(info.duration);
     playBlueSpeech(imperfectSpeech(buffer,info),at,info.duration,walk,1,voice);
-    for(const word of info.words)later(()=>{$(heads[voice].id+'Subtitle').textContent=word.text},(at-ctx.currentTime+speechTime(walk,word.at))*1000);
+    for(const word of info.words)later(()=>{subtitle(voice).textContent=word.text},(at-ctx.currentTime+speechTime(walk,word.at))*1000);
     for(const [start,end] of syllableMouths(info,walk)){
       later(()=>{frame.style.backgroundPosition='0 0';frame.style.opacity='1'},(at-ctx.currentTime+start)*1000);
       later(()=>{frame.style.opacity='0'},(at-ctx.currentTime+end)*1000);
     }
     finish(info.duration+.04,token,onComplete);
-  }catch(error){if(token===run){sleep();$(heads[voice].id+'Subtitle').textContent=error.message;}}
+  }catch(error){if(token===run){sleep();subtitle(voice).textContent=error.message;}}
 }
 function playBlueSyllable(buffer,phonemes,hz,duration,at,level,donors,voice=0){
   const samples=singPhonemes(buffer.getChannelData(0),buffer.sampleRate,pronunciationMistakes(phonemes,donors),hz,duration);
@@ -210,7 +216,7 @@ async function perform(kind,options={}){
   }
   lastAction=kind==='reaction'&&active===2?'giggle':kind;lastLead=active;
   if(kind==='talk')lastSpeaker=active;
-  cancel();const token=run;let t=ctx.currentTime+.04,start=t;const lines=heads[active].lines;visibleHeads().forEach(h=>$(h.id+'Subtitle').textContent='');
+  cancel();const token=run;let t=ctx.currentTime+.04,start=t;const lines=heads[active].lines;visibleHeads().forEach(h=>subtitle(h.voice).textContent='');
   if(kind==='reaction'){
     const phrase=reactionPhrase(active);subtitle().textContent=phrase.caption;
     for(const note of phrase.notes)tone(note.hz,note.duration,t+note.at,note.vowel,'square',active,note.kind,note.level);
@@ -228,7 +234,7 @@ async function perform(kind,options={}){
     if(kind==='laugh'){
       voices.forEach((voice,part)=>{
         let cursor=start+part*.055;
-        later(()=>{$(heads[voice].id+'Subtitle').textContent='*laughs*'},(cursor-ctx.currentTime)*1000);
+        later(()=>{subtitle(voice).textContent='*laughs*'},(cursor-ctx.currentTime)*1000);
         const phrase=voiceLaugh(voice);
         for(const note of phrase.notes)tone(note.hz,note.duration,cursor+note.at,note.vowel,'square',voice,'laugh',level);
         cursor+=phrase.duration;
@@ -258,7 +264,7 @@ async function perform(kind,options={}){
           syllables.forEach((syllable,index)=>{
             const at=t+index*syllableBeat;
             const words=[...lyric.slice(0,step),syllables.slice(0,index+1).join('')].join(' ');
-            later(()=>{$(heads[voice].id+'Subtitle').textContent=`${words}\n[ ${note.name} — ]`},(at-ctx.currentTime)*1000);
+            later(()=>{subtitle(voice).textContent=`${words}\n[ ${note.name} — ]`},(at-ctx.currentTime)*1000);
             if(heads[voice].phonetic)playBlueSyllable(sungWords.get(lyric[step]),blueSingingData[lyric[step].toLowerCase()].syllables[index],note.hz,syllableBeat*.88,at,level,donors,voice);
             else tone(note.hz,syllableBeat*.88,at,(part+index)%4,'sawtooth',voice,'sing',level);
           });
@@ -279,7 +285,7 @@ async function wake(kind='talk'){
       cancel();
       replyQueue=[];lastExchange=-1;lastMelody=-1;
       lastAction=null;lastSpeaker=-1;lastLead=-1;
-      heads.forEach(head=>head.lastLine=-1);visibleHeads().forEach(head=>$(head.id+'Subtitle').textContent='');
+      heads.forEach(head=>head.lastLine=-1);visibleHeads().forEach(head=>subtitle(head.voice).textContent='');
       if(kind==='talk')active=cast[0];
       closing=false;closeAt=ctx.currentTime+48+Math.random()*4;awake=true;
       document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true');
@@ -291,7 +297,7 @@ async function wake(kind='talk'){
 function finishConversation(){
   sleep();
 }
-function sleep(){replyQueue=[];awake=false;closing=false;closeAt=Infinity;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);visibleHeads().forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
+function sleep(){replyQueue=[];awake=false;closing=false;closeAt=Infinity;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);visibleHeads().forEach(h=>subtitle(h.voice).textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
 function toggle(){if(!exportController)return awake?sleep():wake()}
 $('power').onclick=toggle;
 $('refreshCast').onclick=()=>{

@@ -1,3 +1,4 @@
+import {sharedCaption} from '../dist/cast.js';
 import {characters,originalCast} from '../dist/cast.js';
 import {scenesForCast,castConclusions} from '../dist/cast-dialogue.js';
 import test from 'node:test';
@@ -51,20 +52,20 @@ test('export chooses MP4 and rejects a WebM-only recorder',()=>{
 });
 
 test('recording routes audio only to the MP4 stream and draws no title',async()=>{
-  const connections=[],text=[],progress=[];let downloaded=false,stopped=false;
+  const connections=[],text=[],textPositions=[],progress=[];let downloaded=false,stopped=false;
   const track={stop(){}},stream={getVideoTracks:()=>[track],getAudioTracks:()=>[track],getTracks:()=>[track]};
   const destination={name:'speakers'},recording={stream};
   const context={currentTime:0,destination,createMediaStreamDestination:()=>recording,
     createBufferSource:()=>({connect(to){connections.push(['source',to])},start(){},stop(){},disconnect(){}}),
     createGain:()=>({gain:{value:1,setValueAtTime(){},linearRampToValueAtTime(){}},connect(to){connections.push(['gain',to])},disconnect(){}})};
-  const pen={fillRect(){},drawImage(){},save(){},restore(){},translate(){},scale(){},createRadialGradient:()=>({addColorStop(){}}),measureText:value=>({width:value.length*10}),fillText:value=>text.push(value)};
+  const pen={fillRect(){},drawImage(){},save(){},restore(){},translate(){},scale(){},createRadialGradient:()=>({addColorStop(){}}),measureText:value=>({width:value.length*10}),fillText:(value,x,y)=>{text.push(value);textPositions.push({value,x,y,font:pen.font})}};
   class Canvas{getContext(){return pen}captureStream(){return stream}}
   class Recorder{
     static isTypeSupported(){return true}state='inactive';
     start(){this.state='recording'}
     stop(){if(this.state==='inactive')return;this.state='inactive';this.ondataavailable({data:new Blob([new Uint8Array([0,0,0,12,102,116,121,112,0,0,0,0])])});this.onstop()}
   }
-  const runtime=vm.createContext({makeExportPlan,frameAt,characters,originalCast,Image:class{width=100;height=100;set src(value){queueMicrotask(()=>this.onload())}},
+  const runtime=vm.createContext({makeExportPlan,frameAt,characters,originalCast,sharedCaption,Image:class{width=100;height=100;set src(value){queueMicrotask(()=>this.onload())}},
     document:{body:{append(){}},createElement:tag=>tag==='canvas'?new Canvas():{click(){downloaded=true},remove(){}}},
     HTMLCanvasElement:Canvas,MediaRecorder:Recorder,MediaStream:class{},Blob,DOMException,
     URL:{createObjectURL:()=>'',revokeObjectURL(){}},setTimeout:fn=>{queueMicrotask(fn);return 1},clearTimeout(){},
@@ -77,6 +78,8 @@ test('recording routes audio only to the MP4 stream and draws no title',async()=
   await vm.runInContext('exportVideo({context,renderAudio:async()=>({}),signal,onProgress,stop})',runtime);
   assert(connections.some(([from,to])=>from==='gain'&&to===recording));
   assert(connections.every(([,to])=>to!==destination));
-  assert(!text.includes('HEADS'));assert(text.includes('*laughs*'));
+  assert(!text.includes('HEADS'));assert.equal(text.filter(value=>value==='*laughs*').length,1);
+  const laugh=textPositions.find(item=>item.value==='*laughs*');
+  assert.equal(laugh.x,640);assert.equal(laugh.y,605);assert(laugh.font.startsWith('24px'));
   assert(progress.length);assert(downloaded);assert(stopped);
 });

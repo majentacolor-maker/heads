@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
-import {characters,chooseCast,validateCast,mountCast,harmonyVoices,castEnsemble} from '../dist/cast.js';
+import {characters,chooseCast,validateCast,mountCast,harmonyVoices,castEnsemble,sharedCaption} from '../dist/cast.js';
 import {topics,characterLines,scenesForCast,conclusionForCast,castConclusions} from '../dist/cast-dialogue.js';
 import {voiceNote,voiceSyllables,voiceLaugh,reactionPhrase,variantSamples} from '../dist/voice-variants.js';
 import {blueSpeechData} from '../dist/blue-speech-data.js';
@@ -124,4 +124,11 @@ test('cast redraw cannot repeat the previous trio even with identical random dra
       assert.notDeepEqual([...cast].sort(),[...previous].sort());previous=cast;
     }
   }
+});
+
+test('shared captions show group laughter and lyrics once while retaining harmony notes',()=>{
+  assert.equal(sharedCaption(['*laughs*','*laughs*','*laughs*']),'*laughs*');
+  assert.equal(sharedCaption(['','','']),'');
+  assert.equal(sharedCaption(['where are','where are we','']), 'where are we');
+  assert.equal(sharedCaption(['stay here\n[ C3 — ]','stay here\n[ E♭3 — ]','stay here\n[ G3 — ]']),'stay here\n[ C3 · E♭3 · G3 — ]');
 });
