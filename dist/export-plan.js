@@ -1,14 +1,17 @@
-import { speechSyllable, laughPhrase, vowelCode } from './music.js';
-import { exchanges, chooseConclusion } from './conversation.js';
+import {vowelCode} from './music.js';
 import {blueSpeechData} from './blue-speech-data.js';
 import {speechWalk,speechTime,syllableMouths} from './blue-phonemes.js';
+import {characters,originalCast,validateCast} from './cast.js';
+import {scenesForCast,conclusionForCast} from './cast-dialogue.js';
+import {voiceSyllables,voiceLaugh} from './voice-variants.js';
 export const EXPORT_DURATION=60;
-export function makeExportPlan(random=Math.random){
-  const candidates=exchanges.filter(turns=>new Set(turns.map(turn=>turn.voice)).size===3);
-  const tones=[],captions=[],dialogue=[],scenes=[],pitches=[100,78,205];let cursor=.7,lastScene=-1;
+export function makeExportPlan(random=Math.random,cast=originalCast){
+  validateCast(cast);
+  const candidates=scenesForCast(cast).filter(turns=>new Set(turns.map(turn=>turn.voice)).size===3);
+  const tones=[],captions=[],dialogue=[],scenes=[];let cursor=.7,lastScene=-1;
   function speak(turn){
     const {voice,text}=turn,turnIndex=dialogue.length;dialogue.push(turn);
-    if(voice===0){
+    if(characters[voice].phonetic){
       const clip=blueSpeechData[text];
       if(!clip)throw new Error('Blue speech is unavailable for this line.');
       const walk=speechWalk(clip.duration,random);
@@ -21,7 +24,7 @@ export function makeExportPlan(random=Math.random){
       caption+=(caption?' ':'')+word;
       captions.push({at:cursor,voice,text:caption,turn:turnIndex});
       const count=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
-      for(let j=0;j<count;j++)for(const part of speechSyllable(voice,pitches[voice],random)){
+      for(let j=0;j<count;j++)for(const part of voiceSyllables(voice,random)){
         tones.push({at:cursor,voice,hz:part.hz,duration:part.duration,vowel:voice===0?vowelCode(word,j):word.charCodeAt(j%word.length),kind:'talk'});
         cursor+=part.duration+part.gap;
       }
@@ -37,25 +40,25 @@ export function makeExportPlan(random=Math.random){
     lastScene=scene;scenes.push(scene);
     for(const turn of candidates[scene])speak(turn);
   }
-  const conclusion=chooseConclusion(random,dialogue.at(-1)?.voice);speak(conclusion);
-  const laughter=pitches.map(pitch=>laughPhrase(pitch,random));
-  const laughDuration=Math.max(...laughter.map((phrase,voice)=>voice*.055+phrase.duration));
+  const conclusion=conclusionForCast(cast,dialogue.at(-1)?.voice,random);speak(conclusion);
+  const laughter=cast.map(voice=>voiceLaugh(voice,random));
+  const laughDuration=Math.max(...laughter.map((phrase,part)=>part*.055+phrase.duration));
   const laughAt=EXPORT_DURATION-.8-laughDuration;
   // Keep whole exchanges and a whole conclusion, leaving the final trio laugh unscaled.
   const scale=(laughAt-.35-.7)/(cursor-.7);
   for(const tone of tones){tone.at=.7+(tone.at-.7)*scale;tone.duration*=scale;}
   for(const caption of captions)caption.at=.7+(caption.at-.7)*scale;
   const conclusionAt=captions.find(caption=>caption.turn===dialogue.length-1).at;
-  laughter.forEach((phrase,voice)=>{
-    const start=laughAt+voice*.055;
+  laughter.forEach((phrase,part)=>{
+    const voice=cast[part],start=laughAt+part*.055;
     captions.push({at:start,voice,text:'*laughs*',turn:dialogue.length});
     for(const note of phrase.notes)tones.push({...note,at:start+note.at,voice,kind:'laugh',level:1/Math.sqrt(3)});
   });
   tones.sort((a,b)=>a.at-b.at);captions.sort((a,b)=>a.at-b.at);
-  return {tones,captions,dialogue,scenes,conclusion,conclusionAt,laughAt,duration:EXPORT_DURATION};
+  return {cast:[...cast],tones,captions,dialogue,scenes,conclusion,conclusionAt,laughAt,duration:EXPORT_DURATION};
 }
 export function frameAt(plan,time){
-  const mouths=[false,false,false],frames=['talk','talk','talk'],captions=['','',''];
+  const count=characters.length,mouths=Array(count).fill(false),frames=Array(count).fill('talk'),captions=Array(count).fill('');
   for(const tone of plan.tones)if(time>=tone.at&&time<tone.at+tone.duration){
     const local=(time-tone.at)*(tone.sourceDuration??tone.duration)/tone.duration;
     mouths[tone.voice]=tone.kind!=='speech'||tone.activity.some(([start,end])=>local>=start&&local<end);

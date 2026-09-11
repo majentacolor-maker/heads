@@ -1,22 +1,23 @@
 import { exportVideo, mp4Mime } from './export-video.js';
 import {blueSpeechData,loadBlueSpeech,blueSingingData,loadBlueSinging} from './blue-speech.js';
 import {speechWalk,speechTime,syllableMouths,singPhonemes,pronunciationMistakes,mispronounceSpeech} from './blue-phonemes.js';
-import { exchanges, chooseLyrics, singingSyllables, chooseConclusion } from './conversation.js';
-import { newLines, blueLines } from './dialogue.js';
+import {chooseLyrics,singingSyllables} from './conversation.js';
 import { melodies } from './melodies.js';
-import { minorNote, decimatorSettings, ensemble, automaticAction, glidePitch, speechSyllable, screamJitter, laughPhrase, vowelCode, blueVowelProfile } from './music.js';
+import { decimatorSettings, automaticAction, glidePitch, screamJitter, vowelCode, blueVowelProfile } from './music.js';
+import {characters,chooseCast,mountCast,nextVoice,castEnsemble,harmonyVoices} from './cast.js';
+import {characterLines,scenesForCast,conclusionForCast} from './cast-dialogue.js';
+import {voiceNote,voiceSyllables,voiceLaugh,reactionPhrase,variantSamples} from './voice-variants.js';
 const $ = id => document.getElementById(id);
 let ctx, master, awake = false, run = 0, nextTimer, lastMelody = -1, active = 0;
 const sources = new Set(), timers = new Set();
-const previousPitch = [null,null,null];
+const previousPitch = characters.map(()=>null);
 let replyQueue=[], lastExchange=-1, exportController=null, closeAt=Infinity, closing=false;
 let lastAction=null,lastSpeaker=-1,lastLead=-1;
-const heads = [
-  {id:'blue',pitch:100,lines:[...blueLines]},
-  {id:'yellow',pitch:78,lines:['I have already decided.', 'Make room. I am here.', 'Of course I can.', 'Watch closely.', 'I do not ask the room for permission.', 'That was not luck.', 'We will do it my way.', 'I know exactly who I am.', 'Even the silence listens to me.', 'I said what I said.', 'Doubt takes too long.', 'Consider it handled.']},
-  {id:'pink',pitch:205,lines:['Oh. Were you talking?', 'I forgot. It seemed unimportant.', 'Is that a thought? Cute.', 'I would explain, but I lost interest.', 'I thought infinity was a perfume.', 'Whatever. I look lovely.', 'Do I have to know what that means?', 'I was listening to the pretty part.', 'Tomorrow is the one after today, right?', 'That sounds complicated. No, thank you.', 'I had a point. Never mind.', 'Mm. Probably.']}
-];
-heads.forEach(head=>{head.lines.push(...newLines[head.id]);head.lastLine=-1});
+const heads=characters.map((head,voice)=>({...head,lines:characterLines[voice],lastLine:-1}));
+let cast=chooseCast(),castScenes=scenesForCast(cast);
+mountCast(document.querySelector('.heads'),cast);
+active=cast[0];
+const visibleHeads=()=>cast.map(voice=>heads[voice]);
 const subtitle=()=>$(heads[active].id+'Subtitle');
 function later(fn, ms) { const id=setTimeout(()=>{timers.delete(id);fn()},ms);timers.add(id);return id }
 async function audio() {
@@ -33,7 +34,7 @@ function trackSource(source,envelope,filter){
   };
   source.onended=()=>{sources.delete(source);source.disconnect();filter?.disconnect();envelope.disconnect();gate.disconnect()};
 }
-function playBlueSpeech(buffer,at,duration,walk=speechWalk(duration),level=1){
+function playBlueSpeech(buffer,at,duration,walk=speechWalk(duration),level=1,voice=0){
   for(const [cents,balance] of [[0,1],[7,.35]]){
     const source=ctx.createBufferSource(),gain=ctx.createGain();
     source.buffer=buffer;source.playbackRate.value=buffer.duration/duration*(walk?.rate??1);
@@ -41,7 +42,7 @@ function playBlueSpeech(buffer,at,duration,walk=speechWalk(duration),level=1){
       source.detune.setValueAtTime(walk.points[0].cents+cents,at);
       for(const point of walk.points.slice(1))source.detune.linearRampToValueAtTime(point.cents+cents,at+point.at/walk.duration*duration);
     }else source.detune.value=cents;
-    const volume=2.2*balance*level;
+    const volume=2.2*balance*level*(voice===3?1.3:1);
     gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(volume,at+.012);
     gain.gain.setValueAtTime(volume,at+duration-.02);gain.gain.linearRampToValueAtTime(0,at+duration);
     source.connect(gain);trackSource(source,gain);source.start(at);source.stop(at+duration+.01);
@@ -54,36 +55,45 @@ function imperfectSpeech(buffer,info){
   const altered=ctx.createBuffer(1,samples.length,buffer.sampleRate);altered.getChannelData(0).set(samples);
   return altered;
 }
-async function speakBlue(text,token,onComplete){
+async function speakBlue(text,token,onComplete,voice=active){
   try{
     const info=blueSpeechData[text],buffer=await loadBlueSpeech(text,ctx);
     if(token!==run||!awake||exportController)return;
-    const at=ctx.currentTime+.04,frame=$('blueFrames');
+    const at=ctx.currentTime+.04,frame=$(heads[voice].id+'Frames');
     const walk=speechWalk(info.duration);
-    playBlueSpeech(imperfectSpeech(buffer,info),at,info.duration,walk);
-    for(const word of info.words)later(()=>{$('blueSubtitle').textContent=word.text},(at-ctx.currentTime+speechTime(walk,word.at))*1000);
+    playBlueSpeech(imperfectSpeech(buffer,info),at,info.duration,walk,1,voice);
+    for(const word of info.words)later(()=>{$(heads[voice].id+'Subtitle').textContent=word.text},(at-ctx.currentTime+speechTime(walk,word.at))*1000);
     for(const [start,end] of syllableMouths(info,walk)){
       later(()=>{frame.style.backgroundPosition='0 0';frame.style.opacity='1'},(at-ctx.currentTime+start)*1000);
       later(()=>{frame.style.opacity='0'},(at-ctx.currentTime+end)*1000);
     }
     finish(info.duration+.04,token,onComplete);
-  }catch(error){if(token===run){sleep();$('blueSubtitle').textContent=error.message;}}
+  }catch(error){if(token===run){sleep();$(heads[voice].id+'Subtitle').textContent=error.message;}}
 }
-function playBlueSyllable(buffer,phonemes,hz,duration,at,level,donors){
+function playBlueSyllable(buffer,phonemes,hz,duration,at,level,donors,voice=0){
   const samples=singPhonemes(buffer.getChannelData(0),buffer.sampleRate,pronunciationMistakes(phonemes,donors),hz,duration);
   const sung=ctx.createBuffer(1,samples.length,buffer.sampleRate);sung.getChannelData(0).set(samples);
-  playBlueSpeech(sung,at,duration,null,level);
-  const frame=$('blueFrames'),delay=(at-ctx.currentTime)*1000;
+  playBlueSpeech(sung,at,duration,null,level,voice);
+  const frame=$(heads[voice].id+'Frames'),delay=(at-ctx.currentTime)*1000;
   later(()=>{frame.style.backgroundPosition='0 100%';frame.style.opacity='1'},delay);
   later(()=>{frame.style.opacity='0'},delay+duration*1000);
 }
 function tone(hz, duration, at, vowel=0, type='square', voice=active, kind='talk', level=1, contour) {
-  if(voice===2&&!contour)contour={from:previousPitch[voice]??hz*.8,to:hz,seconds:Math.min(.24,duration*.6)};
+  if(heads[voice].family===2&&!contour)contour={from:previousPitch[voice]??hz*.8,to:hz,seconds:Math.min(.24,duration*.6)};
   previousPitch[voice]=hz;
   const frame=$(heads[voice].id+'Frames');
   const delay=Math.max(0,(at-ctx.currentTime)*1000);
-  if(!exportController){later(()=>{ frame.style.backgroundPosition=['scream','sigh','giggle'].includes(kind)?'100% 100%':kind==='laugh'?'100% 0':kind==='sing'?'0 100%':'0 0'; frame.style.opacity='1'; },delay);
+  if(!exportController){later(()=>{ frame.style.backgroundPosition=!['talk','laugh','sing'].includes(kind)?'100% 100%':kind==='laugh'?'100% 0':kind==='sing'?'0 100%':'0 0'; frame.style.opacity='1'; },delay);
   later(()=>{ frame.style.opacity='0'; },delay+duration*1000);}
+  if(voice>2){
+    const samples=variantSamples(voice,hz,duration,ctx.sampleRate,vowel,kind,contour),buffer=ctx.createBuffer(1,samples.length,ctx.sampleRate);
+    buffer.getChannelData(0).set(samples);
+    const source=ctx.createBufferSource(),gain=ctx.createGain();source.buffer=buffer;
+    const volume=level*(voice===3?1.1:.8);
+    gain.gain.setValueAtTime(0,at);gain.gain.linearRampToValueAtTime(volume,at+Math.min(.015,duration*.25));
+    gain.gain.setValueAtTime(volume*.8,at+duration*.65);gain.gain.linearRampToValueAtTime(0,at+duration);
+    source.connect(gain);trackSource(source,gain);source.start(at);source.stop(at+duration+.02);return;
+  }
   if(voice!==0){texture(hz,duration,at,vowel,voice,kind,level,contour);return}
   const jitter=kind==='scream'?screamJitter(duration):null,shape=blueVowelProfile(vowel);
   for(const [cents,balance] of [[0,1],[7,.7]]){
@@ -165,7 +175,7 @@ function texture(hz,duration,at,vowel,voice,kind,level,contour){
   if(filter){source.connect(filter);filter.connect(gain)}else source.connect(gain);
   trackSource(source,gain,filter);source.start(at);source.stop(at+duration+.02);
 }
-function cancel(){previousPitch.fill(null);heads.forEach(h=>$(h.id+'Frames').style.opacity='0');run++;clearTimeout(nextTimer);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sources){try{s.fadeOut()}catch{}}sources.clear();}
+function cancel(){previousPitch.fill(null);visibleHeads().forEach(h=>$(h.id+'Frames').style.opacity='0');run++;clearTimeout(nextTimer);for(const t of timers)clearTimeout(t);timers.clear();for(const s of sources){try{s.fadeOut()}catch{}}sources.clear();}
 function schedule(){
   if(!awake)return;
   if(ctx.currentTime>=closeAt){conclude();return}
@@ -173,10 +183,9 @@ function schedule(){
   nextTimer=setTimeout(()=>{
     const action=automaticAction(Math.random,lastAction);
     if(action==='talk'&&replyQueue[0]?.voice===lastSpeaker)replyQueue=[];
-    active=action==='talk'&&replyQueue.length?replyQueue[0].voice:
-      ((action==='talk'?lastSpeaker:lastLead)+1)%heads.length;
+    active=nextVoice(cast,action==='talk'?lastSpeaker:lastLead,action==='talk'?replyQueue[0]?.voice:undefined);
     // A pink giggle is laughter too, so keep it apart from a laugh event.
-    if(action==='reaction'&&active===2&&lastAction==='laugh')active=0;
+    if(action==='reaction'&&active===2&&lastAction==='laugh')active=cast.find(voice=>voice!==2&&voice!==lastLead)??cast.find(voice=>voice!==2);
     perform(action);
   },replying?250+Math.random()*450:1000+Math.random()*1500);
 }
@@ -184,16 +193,16 @@ function finish(duration,token,onComplete){later(()=>{if(token!==run||!awake)ret
 function conclude(){
   if(closing)return;
   closing=true;replyQueue=[];
-  const ending=chooseConclusion(Math.random,lastSpeaker);active=ending.voice;
+  const ending=conclusionForCast(cast,lastSpeaker);active=ending.voice;
   perform('talk',{text:ending.text,onComplete:()=>{
-    later(()=>perform('laugh',{voices:[0,1,2],onComplete:()=>later(finishConversation,800)}),350);
+    later(()=>perform('laugh',{voices:cast,onComplete:()=>later(finishConversation,800)}),350);
   }});
 }
 async function perform(kind,options={}){
   let spoken=options.text;
   if(kind==='talk'&&spoken===undefined){
     if(!replyQueue.length&&Math.random()<.75){
-      const candidates=exchanges.map((turns,index)=>({turns,index})).filter(x=>x.turns[0].voice===active&&x.index!==lastExchange);
+      const candidates=castScenes.map((turns,index)=>({turns,index})).filter(x=>x.turns[0].voice===active&&x.index!==lastExchange);
       const selected=candidates[Math.floor(Math.random()*candidates.length)];
       replyQueue=selected.turns.slice();lastExchange=selected.index;
     }
@@ -201,36 +210,26 @@ async function perform(kind,options={}){
   }
   lastAction=kind==='reaction'&&active===2?'giggle':kind;lastLead=active;
   if(kind==='talk')lastSpeaker=active;
-  cancel();const token=run;let t=ctx.currentTime+.04,start=t;const pitch=heads[active].pitch;const lines=heads[active].lines;heads.forEach(h=>$(h.id+'Subtitle').textContent='');
+  cancel();const token=run;let t=ctx.currentTime+.04,start=t;const lines=heads[active].lines;visibleHeads().forEach(h=>$(h.id+'Subtitle').textContent='');
   if(kind==='reaction'){
-    if(active===0){
-      subtitle().textContent='*screams*';
-      tone(120,2.8,t,0,'sawtooth',0,'scream',.32);t+=2.8;
-    }else if(active===1){
-      subtitle().textContent='*sighs*';
-      tone(0,1.6,t,0,'square',1,'sigh',.9);t+=1.6;
-    }else{
-      subtitle().textContent='*giggles*';
-      for(let i=0;i<12;i++){
-        const hz=460+Math.sin(i*1.8)*65;
-        tone(hz,.045,t,i%3,'square',2,'giggle',.7,{from:hz*1.12,to:hz,seconds:.045});t+=.073;
-      }
-    }
+    const phrase=reactionPhrase(active);subtitle().textContent=phrase.caption;
+    for(const note of phrase.notes)tone(note.hz,note.duration,t+note.at,note.vowel,'square',active,note.kind,note.level);
+    t+=phrase.duration;
   }else if(kind==='talk'){
     let i=Math.floor(Math.random()*lines.length);if(i===heads[active].lastLine)i=(i+1)%lines.length;heads[active].lastLine=i;
-    if(active===0)return speakBlue(spoken??lines[i],token,options.onComplete);
+    if(heads[active].phonetic)return speakBlue(spoken??lines[i],token,options.onComplete);
     const words=(spoken??lines[i]).split(' ');let text='';
     for(const word of words){const shown=(text+=(text?' ':'')+word);later(()=>{subtitle().textContent=shown},(t-ctx.currentTime)*1000);
       const n=Math.max(1,Math.min(5,Math.ceil(word.length/2)));
-      for(let j=0;j<n;j++)for(const part of speechSyllable(active,pitch)){tone(part.hz,part.duration,t,active===0?vowelCode(word,j):word.charCodeAt(j%word.length));t+=part.duration+part.gap;}t+=/[.,?]$/.test(word)?.25:.075;
+      for(let j=0;j<n;j++)for(const part of voiceSyllables(active)){tone(part.hz,part.duration,t,active===0?vowelCode(word,j):word.charCodeAt(j%word.length));t+=part.duration+part.gap;}t+=/[.,?]$/.test(word)?.25:.075;
     }
   }else{
-    const voices=options.voices??ensemble(active), level=1/Math.sqrt(voices.length);
+    const voices=options.voices??castEnsemble(cast,active), level=1/Math.sqrt(voices.length);
     if(kind==='laugh'){
       voices.forEach((voice,part)=>{
         let cursor=start+part*.055;
         later(()=>{$(heads[voice].id+'Subtitle').textContent='*laughs*'},(cursor-ctx.currentTime)*1000);
-        const phrase=laughPhrase(heads[voice].pitch);
+        const phrase=voiceLaugh(voice);
         for(const note of phrase.notes)tone(note.hz,note.duration,cursor+note.at,note.vowel,'square',voice,'laugh',level);
         cursor+=phrase.duration;
         t=Math.max(t,cursor);
@@ -241,12 +240,12 @@ async function perform(kind,options={}){
       lastMelody=choice;
       const melody=melodies[choice], beatSeconds=60/(80+Math.random()*40);
       const offsets=[0,2,4], lyric=chooseLyrics(melody.degrees.length);
-      const singers=voices.includes(1)?[1,...voices.filter(voice=>voice!==1)]:voices;
+      const singers=harmonyVoices(voices);
       const sungWords=new Map();
-      if(singers.includes(0)){
+      if(singers.some(voice=>heads[voice].phonetic)){
         try{
           await Promise.all(lyric.map(async word=>sungWords.set(word,await loadBlueSinging(word,ctx))));
-        }catch(error){if(token===run){sleep();$('blueSubtitle').textContent=error.message;}return;}
+        }catch(error){if(token===run){sleep();subtitle().textContent=error.message;}return;}
         if(token!==run||!awake||exportController)return;
         t=start=ctx.currentTime+.04;
       }
@@ -255,12 +254,12 @@ async function perform(kind,options={}){
         const degree=melody.degrees[step], duration=melody.beats[step]*beatSeconds;
         const syllables=singingSyllables(lyric[step]), syllableBeat=duration/syllables.length;
         singers.forEach((voice,part)=>{
-          const note=minorNote(degree+offsets[part],voice);
+          const note=voiceNote(degree+offsets[part],voice);
           syllables.forEach((syllable,index)=>{
             const at=t+index*syllableBeat;
             const words=[...lyric.slice(0,step),syllables.slice(0,index+1).join('')].join(' ');
             later(()=>{$(heads[voice].id+'Subtitle').textContent=`${words}\n[ ${note.name} — ]`},(at-ctx.currentTime)*1000);
-            if(voice===0)playBlueSyllable(sungWords.get(lyric[step]),blueSingingData[lyric[step].toLowerCase()].syllables[index],note.hz,syllableBeat*.88,at,level,donors);
+            if(heads[voice].phonetic)playBlueSyllable(sungWords.get(lyric[step]),blueSingingData[lyric[step].toLowerCase()].syllables[index],note.hz,syllableBeat*.88,at,level,donors,voice);
             else tone(note.hz,syllableBeat*.88,at,(part+index)%4,'sawtooth',voice,'sing',level);
           });
         });
@@ -277,10 +276,13 @@ async function wake(kind='talk'){
     await audio();
     if(token!==run||exportController)return;
     if(!awake){
-      cancel();replyQueue=[];lastExchange=-1;lastMelody=-1;
+      cancel();
+      cast=chooseCast(Math.random,cast);castScenes=scenesForCast(cast);
+      mountCast(document.querySelector('.heads'),cast);active=cast[0];
+      replyQueue=[];lastExchange=-1;lastMelody=-1;
       lastAction=null;lastSpeaker=-1;lastLead=-1;
-      heads.forEach(head=>{head.lastLine=-1;$(head.id+'Subtitle').textContent=''});
-      if(kind==='talk')active=0;
+      heads.forEach(head=>head.lastLine=-1);visibleHeads().forEach(head=>$(head.id+'Subtitle').textContent='');
+      if(kind==='talk')active=cast[0];
       closing=false;closeAt=ctx.currentTime+48+Math.random()*4;awake=true;
       document.body.classList.add('awake');$('power').textContent='SLEEP';$('power').setAttribute('aria-pressed','true');
     }
@@ -291,7 +293,7 @@ async function wake(kind='talk'){
 function finishConversation(){
   sleep();
 }
-function sleep(){replyQueue=[];awake=false;closing=false;closeAt=Infinity;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);heads.forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
+function sleep(){replyQueue=[];awake=false;closing=false;closeAt=Infinity;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);visibleHeads().forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
 function toggle(){if(!exportController)return awake?sleep():wake()}
 $('power').onclick=toggle;
 document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.target.tagName==='BUTTON')return;if(e.code==='Space'){e.preventDefault();toggle()}});
@@ -308,7 +310,7 @@ async function renderExportAudio(plan){
     const limiter=offline.createDynamicsCompressor();master.connect(limiter);limiter.connect(offline.destination);
     previousPitch.fill(null);
     for(const event of plan.tones){
-      if(event.kind==='speech')playBlueSpeech(imperfectSpeech(speech.get(event.text),blueSpeechData[event.text]),event.at,event.duration,event.walk);
+      if(event.kind==='speech')playBlueSpeech(imperfectSpeech(speech.get(event.text),blueSpeechData[event.text]),event.at,event.duration,event.walk,1,event.voice);
       else tone(event.hz,event.duration,event.at,event.vowel,'square',event.voice,event.kind??'talk',event.level??1);
     }
   }finally{ctx=liveContext;master=liveMaster;}
@@ -321,7 +323,7 @@ $('export').onclick=async()=>{
   $('power').disabled=true;$('export').textContent='CANCEL';$('exportProgress').hidden=false;$('exportProgress').value=0;$('exportStatus').textContent='Keep this tab open while recording.';
   try{
     await audio();
-    await exportVideo({context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('exportProgress').value=percent}});
+    await exportVideo({cast,context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('exportProgress').value=percent}});
     completed=true;
     $('exportStatus').textContent='';
   }catch(error){$('exportStatus').textContent=error.name==='AbortError'?'Export cancelled.':error.message;}

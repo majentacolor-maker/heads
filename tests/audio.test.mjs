@@ -1,3 +1,6 @@
+import {characters,chooseCast,mountCast,nextVoice,castEnsemble,harmonyVoices} from '../dist/cast.js';
+import {characterLines,scenesForCast,conclusionForCast,castConclusions} from '../dist/cast-dialogue.js';
+import {voiceNote,voiceSyllables,voiceLaugh,reactionPhrase,variantSamples} from '../dist/voice-variants.js';
 import {blueSingingData} from '../dist/blue-singing-data.js';
 import {speechWalk,speechTime,syllableMouths,singPhonemes,pronunciationMistakes,mispronounceSpeech} from '../dist/blue-phonemes.js';
 import {blueSpeechData} from '../dist/blue-speech-data.js';
@@ -28,14 +31,14 @@ test('decimation clock and depth track pitch within bounds',()=>{
   assert(high.sampleRate>low.sampleRate);assert(high.bits>low.bits);
   assert.equal(decimatorSettings(1e6).sampleRate,6000);assert.equal(decimatorSettings(0).bits,1);
 });
-function harness(){
+function harness(selectedCast=[0,2,1]){
   const elements=new Map(),pending=new Map(), played=[], buffers=[];let id=0;
-  const element=name=>{if(!elements.has(name))elements.set(name,{style:{},textContent:'',setAttribute(){}});return elements.get(name)};
+  const element=name=>{const owner=characters.find(head=>name===head.id+'Frames'||name===head.id+'Subtitle');if(owner&&!selectedCast.includes(owner.voice))throw new Error('Absent face: '+name);if(!elements.has(name))elements.set(name,{style:{},textContent:'',setAttribute(){}});return elements.get(name)};
   const param=()=>({value:0,setValueAtTime(){},linearRampToValueAtTime(){},exponentialRampToValueAtTime(){},cancelScheduledValues(){}});
   const node=()=>({gain:param(),frequency:param(),playbackRate:param(),detune:param(),Q:param(),connect(){},disconnect(){},start(at){played.push({at,node:this})},stop(){}});
   const math=Object.create(Math);math.random=()=>.99;
-  const context=vm.createContext({exportVideo:()=>{},mp4Mime:()=>null,newLines,blueLines,blueSpeechData,blueSingingData,speechWalk,speechTime,syllableMouths,singPhonemes,pronunciationMistakes,mispronounceSpeech,loadBlueSinging:async(word,ctx)=>{const bytes=readFileSync(new URL('../dist/'+blueSingingData[word.toLowerCase()].file,import.meta.url));const buffer=ctx.createBuffer(1,(bytes.length-44)/2,22050),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=bytes.readInt16LE(44+i*2)/32768;return buffer},loadBlueSpeech:async(text,ctx)=>ctx.createBuffer(1,Math.ceil(blueSpeechData[text].duration*22050),22050),melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,vowelCode,blueVowelProfile,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
-    document:{getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
+  const context=vm.createContext({characters,chooseCast:()=>selectedCast,mountCast:()=>{},nextVoice,castEnsemble:(cast,lead)=>castEnsemble(cast,lead,()=>.99),harmonyVoices,characterLines,scenesForCast,conclusionForCast,voiceNote,voiceSyllables,voiceLaugh,reactionPhrase,variantSamples,exportVideo:()=>{},mp4Mime:()=>null,newLines,blueLines,blueSpeechData,blueSingingData,speechWalk,speechTime,syllableMouths,singPhonemes,pronunciationMistakes,mispronounceSpeech,loadBlueSinging:async(word,ctx)=>{const bytes=readFileSync(new URL('../dist/'+blueSingingData[word.toLowerCase()].file,import.meta.url));const buffer=ctx.createBuffer(1,(bytes.length-44)/2,22050),data=buffer.getChannelData(0);for(let i=0;i<data.length;i++)data[i]=bytes.readInt16LE(44+i*2)/32768;return buffer},loadBlueSpeech:async(text,ctx)=>ctx.createBuffer(1,Math.ceil(blueSpeechData[text].duration*22050),22050),melodies,exchanges,chooseLyrics,singingSyllables,chooseConclusion,minorNote,decimatorSettings,automaticAction,glidePitch,speechSyllable,screamJitter,laughPhrase,vowelCode,blueVowelProfile,ensemble:(lead)=>ensemble(lead,()=>.99),Math:math,
+    document:{querySelector:()=>({}),getElementById:element,body:{classList:{add(){},remove(){}}},addEventListener(){}},
     AudioContext:class{currentTime=0;sampleRate=48000;destination={};createGain=node;createDynamicsCompressor=node;createOscillator=node;createBiquadFilter=node;createBufferSource=node;createBuffer(ch,length,rate){const data=new Float32Array(length);buffers.push(data);return{sampleRate:rate,duration:length/rate,getChannelData(){return data}}}async resume(){}},
     setTimeout(fn,ms){const key=++id;pending.set(key,{fn(){pending.delete(key);fn()},ms});return key},clearTimeout(id){pending.delete(id)},console
   });
@@ -111,7 +114,7 @@ test('live conversation alternates speakers and separates repeated reactions thr
       assert(!(turn.kind==='reaction'&&previous.kind==='reaction'));
     }
   }
-  assert(conclusions.some(ending=>ending.text===turns.at(-1).text));
+  assert([...conclusions,...castConclusions].some(ending=>ending.text===turns.at(-1).text));
   vm.runInContext('sleep()',h.context);
 });
 test('1000 distinct closing lines end silently with WAKE ready for a new conversation',async()=>{
@@ -126,8 +129,8 @@ test('1000 distinct closing lines end silently with WAKE ready for a new convers
   for(let pass=0;pass<10;pass++){await new Promise(resolve=>setImmediate(resolve));if(!h.pending.size)break;for(const entry of [...h.pending.values()].sort((a,b)=>a.ms-b.ms))entry.fn();}
   const actions=vm.runInContext('endingActions',h.context);
   assert.equal(actions.length,2);assert.equal(actions[0].kind,'talk');
-  assert(conclusions.some(line=>line.text===actions[0].text));
-  assert.equal(actions[1].kind,'laugh');assert.deepEqual(Array.from(actions[1].voices),[0,1,2]);
+  assert([...conclusions,...castConclusions].some(line=>line.text===actions[0].text));
+  assert.equal(actions[1].kind,'laugh');assert.deepEqual(Array.from(actions[1].voices),[0,2,1]);
   assert.equal(vm.runInContext('awake',h.context),false);assert.equal(h.pending.size,0);
   assert.equal(h.elements.get('power').textContent,'WAKE');
   await h.elements.get('power').onclick();
@@ -172,8 +175,8 @@ test('all reactions produce audio with matching subtitles and cancel cleanly',as
   const h=harness();
   for(const [voice,label,count] of [[0,'*screams*',2],[1,'*sighs*',1],[2,'*giggles*',12]]){
     h.played.length=0;
-    vm.runInContext(`active=${voice}`,h.context);
-    await vm.runInContext("wake('reaction')",h.context);
+    await vm.runInContext(`audio();awake=true;active=${voice}`,h.context);
+    await vm.runInContext("perform('reaction')",h.context);
     assert.equal(h.played.length,count);
     assert.equal(h.elements.get(['blue','yellow','pink'][voice]+'Subtitle').textContent,label);
     for(const entry of h.pending.values())if(entry.ms<=41)entry.fn();
@@ -256,6 +259,29 @@ test('sleep while audio resumes cancels the pending wake',async()=>{
   assert.equal(h.elements.get('power').textContent,'WAKE');
 });
 
+test('new trios speak, react, sing and laugh using only their own faces, with a selected cast',async()=>{
+  for(const cast of [[0,3,6],[1,5,7],[2,4,8]]){
+    const h=harness(cast);
+    for(const voice of cast){
+      for(const kind of ['talk','reaction','sing','laugh']){
+        await vm.runInContext('audio();awake=true;active='+voice,h.context);
+        h.played.length=0;
+        await vm.runInContext(`perform('${kind}')`,h.context);
+        assert(h.played.length>0,`${voice} ${kind}`);
+        for(const item of [...h.pending.values()])if(item.ms<45)item.fn();
+        assert.equal(vm.runInContext('awake',h.context),true);
+        vm.runInContext('sleep()',h.context);
+        assert.equal(h.pending.size,0);
+      }
+    }
+    await h.elements.get('power').onclick();
+    assert.equal(vm.runInContext('active',h.context),cast[0]);
+    assert.deepEqual(Array.from(vm.runInContext('cast',h.context)),cast);
+    assert.equal(h.elements.get('power').textContent,'SLEEP');
+    vm.runInContext('sleep()',h.context);
+  }
+});
+
 
 test('speech gestures add deep yellow pitches, pink stutters, and long blue holds',()=>{
   assert(speechSyllable(1,78,()=>0)[0].hz<30);
@@ -281,4 +307,34 @@ test('yellow breath ignores pitch and glide settings',async()=>{
   const low=h.buffers.at(-1);
   vm.runInContext("texture(800,1.6,0,0,1,'sigh',1,{from:800,to:1500,seconds:1.6})",h.context);
   assert.deepEqual(h.buffers.at(-1),low);
+});
+
+test('WAKE redraws the cast, resets conversation state, and exports that cast',async()=>{
+  const h=harness();
+  h.context.chooseCast=(random,previous)=>chooseCast(()=>.4,previous);
+  h.context.mountCast=(_root,cast)=>{h.context.mountedCast=[...cast]};
+  // Track the mounted cast rather than the harness's original fixture.
+  h.context.document.getElementById=name=>{
+    if(!h.elements.has(name))h.elements.set(name,{style:{},textContent:'',setAttribute(){}});
+    return h.elements.get(name);
+  };
+  let previous=Array.from(vm.runInContext('cast',h.context));
+  for(let i=0;i<4;i++){
+    await h.elements.get('power').onclick();
+    const cast=Array.from(vm.runInContext('cast',h.context));
+    assert.equal(cast.length,3);assert.equal(new Set(cast).size,3);
+    assert.notDeepEqual([...cast].sort(),[...previous].sort());
+    assert.deepEqual(h.context.mountedCast,cast);
+    assert(vm.runInContext('castScenes.every(scene=>scene.every(turn=>cast.includes(turn.voice)))',h.context));
+    assert.equal(h.elements.get('power').textContent,'SLEEP');
+    await h.elements.get('power').onclick();
+    assert.equal(h.pending.size,0);assert.equal(h.elements.get('power').textContent,'WAKE');
+    previous=cast;
+  }
+  h.context.AbortController=AbortController;h.context.mp4Mime=()=> 'video/mp4';
+  let exported;
+  h.context.exportVideo=async options=>{exported=[...options.cast]};
+  await h.elements.get('export').onclick();
+  assert.deepEqual(exported,previous);
+  assert.deepEqual(Array.from(vm.runInContext('cast',h.context)),previous);
 });

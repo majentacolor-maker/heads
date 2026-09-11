@@ -6,14 +6,18 @@ import {fileURLToPath} from 'node:url';
 import {createHash} from 'node:crypto';
 import {blueLines,newLines} from '../dist/dialogue.js';
 import {exchanges,conclusions} from '../dist/conversation.js';
+import {characterLines,castConclusions} from '../dist/cast-dialogue.js';
+import {blueSpeechData} from '../dist/blue-speech-data.js';
 
 const encode=promisify(execFile),timingsOnly=process.argv.includes('--timings-only');
-const texts=[...new Set([...blueLines,...newLines.blue,...exchanges.flat().filter(turn=>turn.voice===0).map(turn=>turn.text),...conclusions.filter(turn=>turn.voice===0).map(turn=>turn.text)])];
+const lowTexts=new Set([...characterLines[3],...castConclusions.filter(turn=>turn.voice===3).map(turn=>turn.text)]);
+const texts=[...new Set([...blueLines,...newLines.blue,...characterLines[0],...lowTexts,...castConclusions.filter(turn=>turn.voice===0).map(turn=>turn.text),...exchanges.flat().filter(turn=>turn.voice===0).map(turn=>turn.text),...conclusions.filter(turn=>turn.voice===0).map(turn=>turn.text)])];
 const module=await init(),voice=new module.eSpeakNGWorker(),rate=22050;
 voice.set_voice('en-us');voice.set_rate(155);voice.set_pitch(22);voice.set_range(0);
 const directory=new URL('../dist/blue-speech/',import.meta.url);await mkdir(directory,{recursive:true});
 const manifest={};
 for(const text of texts){
+  if(blueSpeechData[text]&&!timingsOnly){manifest[text]=blueSpeechData[text];continue;}
   const chunks=[],events=[];
   voice.synthesize_and_get_phonemes(text,(samples,markers)=>{if(samples?.length)chunks.push(Int16Array.from(samples));events.push(...markers)});
   const length=chunks.reduce((sum,chunk)=>sum+chunk.length,0),pcm=new Float32Array(length);
@@ -47,7 +51,8 @@ for(const text of texts){
   if(!timingsOnly){
   const temporary=new URL(name,directory),compressed=new URL(name.replace('.wav','.mp3'),directory);
   await writeFile(temporary,wav);
-  await encode('ffmpeg',['-v','error','-y','-i',fileURLToPath(temporary),'-codec:a','libmp3lame','-b:a','48k',fileURLToPath(compressed)]);
+  const filters=lowTexts.has(text)?['-af',`asetrate=5512.5,aresample=22050,atempo=2,atempo=2,apad,atrim=duration=${length/rate},afade=t=in:d=0.012,afade=t=out:st=${Math.max(0,length/rate-.02)}:d=0.02`]:[];
+  await encode('ffmpeg',['-v','error','-y','-i',fileURLToPath(temporary),...filters,'-codec:a','libmp3lame','-b:a','48k',fileURLToPath(compressed)]);
   await unlink(temporary);
   }
   const markers=events.filter(event=>event.type==='phoneme');
