@@ -296,7 +296,7 @@ function finishConversation(){
 function sleep(){replyQueue=[];awake=false;closing=false;closeAt=Infinity;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);visibleHeads().forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
 function toggle(){if(!exportController)return awake?sleep():wake()}
 $('power').onclick=toggle;
-document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||e.target.tagName==='BUTTON')return;if(e.code==='Space'){e.preventDefault();toggle()}});
+document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||['BUTTON','SUMMARY','A','INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();toggle()}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(exportController)exportController.abort();if(awake)sleep()}});
 if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'sleep_head',description:'Stop the head and its audio.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false},execute(input){if(!input||typeof input!=='object'||Object.keys(input).length)throw new Error('Expected an empty object');sleep();return{awake:false}}})).catch(()=>{})}catch{}}
 

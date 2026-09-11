@@ -34,7 +34,7 @@ test('every supplied base and its four-frame sheet exist and retain the requeste
 
 test('each trio mounts only its three matching faces, captions and masked animations',()=>{
   const previous=globalThis.document;
-  const node=tag=>({tag,style:{},dataset:{},children:[],attributes:{},append(...children){this.children.push(...children)},setAttribute(key,value){this.attributes[key]=value}});
+  const node=tag=>({tag,style:{},dataset:{},classList:{values:new Set(),add(value){this.values.add(value)}},children:[],attributes:{},append(...children){this.children.push(...children)},setAttribute(key,value){this.attributes[key]=value}});
   globalThis.document={createElement:node};
   try{
     for(const cast of combinations){
@@ -42,6 +42,8 @@ test('each trio mounts only its three matching faces, captions and masked animat
       assert.equal(root.children.length,3);
       root.children.forEach((section,i)=>{
         const head=characters[cast[i]],[image,frames]=section.children[0].children;
+        assert.equal(section.children[0].classList.values.has('ready'),false);
+        image.onload();assert.equal(section.children[0].classList.values.has('ready'),true);
         assert.equal(image.src,head.still);assert.equal(section.dataset.head,head.id);
         assert.equal(frames.id,head.id+'Frames');assert(frames.style.backgroundImage.includes(head.sprite));
         assert.equal(section.children[1].id,head.id+'Subtitle');

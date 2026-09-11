@@ -38,13 +38,16 @@ export function mountCast(container,cast){
   container.replaceChildren(...cast.map(voice=>{
     const head=characters[voice],section=document.createElement('section'),stack=document.createElement('div');
     section.dataset.head=head.id;stack.className='face-stack';
-    const image=document.createElement('img');image.src=head.still;image.alt=head.description+' face';image.width=1024;image.height=1024;
+    const image=document.createElement('img');
+    image.onload=()=>stack.classList.add('ready');
+    image.src=head.still;image.alt=head.description+' face';image.width=1024;image.height=1024;
     const frames=document.createElement('div');frames.className='frames';frames.id=head.id+'Frames';frames.setAttribute('aria-hidden','true');
     frames.style.backgroundImage=`url("${head.sprite}")`;
     const [x,y,rx,ry]=head.mask,[dx,dy]=head.shift;
     frames.style.transform=`translate(${dx*100}%,${dy*100}%)`;
     frames.style.maskImage=`radial-gradient(ellipse ${rx*100}% ${ry*100}% at ${(x-dx)*100}% ${(y-dy)*100}%,#000 55%,transparent 100%)`;
     const caption=document.createElement('p');caption.id=head.id+'Subtitle';caption.setAttribute('aria-live','polite');
+    if(image.complete&&image.naturalWidth)stack.classList.add('ready');
     stack.append(image,frames);section.append(stack,caption);return section;
   }));
 }
