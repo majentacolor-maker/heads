@@ -34,3 +34,5 @@ h1{font:inherit;font-family:'Benzin',sans-serif;font-weight:700;font-size:24px;t
   #caption{font-size:15px}
   #exportStatus{font-size:10px;margin-top:10px}
 }
+
+#captionRemaining{visibility:hidden}#captionNotes{display:block;min-height:1.3em}#captionNotes[hidden]{display:none}

@@ -1,3 +1,4 @@
+import {captionLayout} from '../dist/export-video.js';
 import {sharedCaption} from '../dist/cast.js';
 import {characters,originalCast} from '../dist/cast.js';
 import {scenesForCast,castConclusions} from '../dist/cast-dialogue.js';
@@ -80,6 +81,20 @@ test('recording routes audio only to the MP4 stream and draws no title',async()=
   assert(connections.every(([,to])=>to!==destination));
   assert(!text.includes('HEADS'));assert.equal(text.filter(value=>value==='*laughs*').length,1);
   const laugh=textPositions.find(item=>item.value==='*laughs*');
-  assert.equal(laugh.x,640);assert.equal(laugh.y,605);assert(laugh.font.startsWith('24px'));
+  assert.equal(laugh.x,600);assert.equal(laugh.y,605);assert(laugh.font.startsWith('24px'));
   assert(progress.length);assert(downloaded);assert(stopped);
+});
+
+test('export reserves the final sentence layout while revealing each word',()=>{
+  const pen={measureText:text=>({width:text.length*15})};
+  const full='We are looking for something that might explain why this room exists and why we have been invited to notice it.';
+  const finished=captionLayout(pen,full,full);assert(finished.lines.length>1);
+  let visible='';
+  for(const word of full.split(' ')){
+    visible+=(visible?' ':'')+word;
+    const layout=captionLayout(pen,full,visible);
+    assert.equal(layout.size,finished.size);
+    assert.deepEqual(layout.lines.map(({x,y})=>[x,y]),finished.lines.map(({x,y})=>[x,y]));
+    assert.equal(layout.lines.map(line=>line.text).filter(Boolean).join(' ').trim(),visible);
+  }
 });

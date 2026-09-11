@@ -40,18 +40,29 @@ function draw(pen,art,plan,time){
   }
   const caption=sharedCaption(plan.cast.map(voice=>state.captions[voice]));
   if(!caption)return;
+  const layout=captionLayout(pen,state.fullCaption,caption);
+  pen.font=`${layout.size}px Menlo, Monaco, monospace`;
+  pen.fillStyle='#fff';pen.textAlign='left';pen.textBaseline='middle';
+  for(const line of layout.lines)if(line.text)pen.fillText(line.text,line.x,line.y);
+}
+export function captionLayout(pen,fullText,visibleText){
   const areaTop=TOP+SIZE,areaHeight=HEIGHT-areaTop;
   let size=24,lines;
   do{
     pen.font=`${size}px Menlo, Monaco, monospace`;
-    lines=caption.split('\n').flatMap(line=>wrappedLines(pen,line,WIDTH-80));
+    lines=fullText.split('\n').flatMap(line=>wrappedLines(pen,line,WIDTH-80));
     if(lines.length*size*1.25<=areaHeight-32||size<=12)break;
     size-=1;
   }while(true);
-  pen.fillStyle='#fff';pen.textAlign='center';pen.textBaseline='middle';
   const lineHeight=size*1.25,center=areaTop+areaHeight/2;
-  lines.forEach((line,i)=>pen.fillText(line,WIDTH/2,center+(i-(lines.length-1)/2)*lineHeight));
+  let offset=0;
+  return {size,lines:lines.map((line,i)=>{
+    const text=line.slice(0,Math.max(0,visibleText.length-offset));
+    offset+=line.length+1;
+    return {text,x:(WIDTH-pen.measureText(line).width)/2,y:center+(i-(lines.length-1)/2)*lineHeight};
+  })};
 }
+
 export async function exportVideo({context,renderAudio,stop,signal,onProgress,cast=originalCast}){
   const mime=mp4Mime();
   if(!mime)throw new Error('MP4 recording is unavailable in this browser. Try current Safari or Chrome.');

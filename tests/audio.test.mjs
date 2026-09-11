@@ -349,3 +349,21 @@ test('WAKE keeps the cast; REFRESH CAST stops playback, redraws it, and exports 
   assert.deepEqual(exported,previous);
   assert.deepEqual(Array.from(vm.runInContext('cast',h.context)),previous);
 });
+
+test('live captions reserve the complete spoken line and lyric before revealing it',async()=>{
+  const h=harness([1,2,4]);
+  await vm.runInContext('audio();awake=true;active=1',h.context);
+  const full='Everything has a place in the current.';
+  await vm.runInContext(`perform('talk',{text:${JSON.stringify(full)}})`,h.context);
+  for(const entry of [...h.pending.values()].sort((a,b)=>a.ms-b.ms)){
+    if(entry.ms>3000)break;entry.fn();
+    assert.equal(h.elements.get('captionWords').textContent+h.elements.get('captionRemaining').textContent,full);
+  }
+  vm.runInContext('sleep()',h.context);
+  assert.equal(h.elements.get('captionRemaining').textContent,'');
+  await vm.runInContext("wake('sing')",h.context);
+  for(const entry of [...h.pending.values()])if(entry.ms<45)entry.fn();
+  assert.equal(h.elements.get('captionWords').textContent+h.elements.get('captionRemaining').textContent,vm.runInContext('captionLine',h.context));
+  assert.equal(h.elements.get('captionNotes').hidden,false);
+  vm.runInContext('sleep()',h.context);
+});

@@ -70,5 +70,6 @@ export function frameAt(plan,time){
     if(caption.at>time)break;
     if(caption.turn===current.turn)captions[caption.voice]=caption.text;
   }
-  return {mouths,frames,captions};
+  const fullCaption=current?(plan.dialogue[current.turn]?.text??current.text):'';
+  return {mouths,frames,captions,fullCaption};
 }
