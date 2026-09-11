@@ -1,3 +1,5 @@
+import {lineKeys} from './variety.js';
+import {expandedLines,expandedConclusions,expandedTurn} from './expanded-dialogue.js';
 import {exchanges,conclusions} from './conversation.js';
 import {blueLines,newLines} from './dialogue.js';
 import {characters} from './cast.js';
@@ -150,7 +152,7 @@ const endings=[
   ['The answer is Tuesday. Meeting closed.','I have put the conclusion in the fridge. Goodbye.','We are finished because the because has finished.','All the spoons agree. This is the end.','Please return your invisible knees. Goodnight.','I found the exit inside the entrance. Bye.','The triangle says we can stop now.','Conclusion delivered to the wrong dimension. We are done.'],
   ['Let us leave this little clearing as we found it. Goodbye.','That is enough for one small wonder. Goodnight.','The last word can turn into a moth. We are finished.','Let the moment wander off somewhere beautiful.','We have made a little room for delight. That will do.','Fold this conversation gently. It is time to go.','The garden can keep our unanswered questions. Goodbye.','One lovely thing happened here. Let us leave it glowing.']
 ];
-export const castConclusions=characters.flatMap((head,voice)=>endings[voice].map(text=>({voice,text})));
+export const castConclusions=[...characters.flatMap((head,voice)=>endings[voice].map(text=>({voice,text}))),...expandedConclusions];
 const originalExtras={
   1:['I have already decided.','Make room. I am here.','Of course I can.','Watch closely.','I do not ask the room for permission.','That was not luck.','We will do it my way.','I know exactly who I am.','Even the silence listens to me.','I said what I said.','Doubt takes too long.','Consider it handled.'],
   2:['Oh. Were you talking?','I forgot. It seemed unimportant.','Is that a thought? Cute.','I would explain, but I lost interest.','I thought infinity was a perfume.','Whatever. I look lovely.','Do I have to know what that means?','I was listening to the pretty part.','Tomorrow is the one after today, right?','That sounds complicated. No, thank you.','I had a point. Never mind.','Mm. Probably.']
@@ -158,6 +160,7 @@ const originalExtras={
 export const characterLines=characters.map((head,voice)=>[
   ...(voice===0?[...blueLines,...newLines.blue]:voice===1?newLines.yellow:voice===2?newLines.pink:[]),
   ...(originalExtras[voice]??[]),
+  ...(expandedLines[voice]??[]),
   ...topics.flatMap(topic=>topic.lines[voice])
 ]);
 export function scenesForCast(cast){
@@ -169,12 +172,19 @@ export function scenesForCast(cast){
       ...order.map(voice=>({voice,text:topic.lines[voice][1]}))
     ]);
   }));
-  return [...original,...mixed];
+  const extended=cast.some(voice=>voice>=3)?topics.flatMap((topic,index)=>Array.from({length:12},(_,variant)=>cast.flatMap(lead=>{
+    const others=cast.filter(voice=>voice!==lead);
+    return [others,[...others].reverse()].map(order=>[
+      {voice:lead,text:expandedTurn(lead,index,variant)??topic.lines[lead][0]},
+      ...order.map(voice=>({voice,text:expandedTurn(voice,index,variant,true)??topic.lines[voice][1]}))
+    ]);
+  })).flat()):[];
+  return [...original,...mixed,...extended];
 }
-export function conclusionForCast(cast,previous=-1,random=Math.random){
+export function conclusionForCast(cast,previous=-1,random=Math.random,history){
   const eligible=[...conclusions,...castConclusions].filter(turn=>cast.includes(turn.voice)&&turn.voice!==previous);
   // Choose the speaker before its line so the larger original banks don't dominate.
-  const voices=[...new Set(eligible.map(turn=>turn.voice))],voice=voices[Math.floor(random()*voices.length)];
+  const voices=[...new Set(eligible.map(turn=>turn.voice))],voice=history?history.pick(voices,voice=>'voice:'+voice,random):voices[Math.floor(random()*voices.length)];
   const lines=eligible.filter(turn=>turn.voice===voice);
-  return lines[Math.floor(random()*lines.length)];
+  return history?history.pick(lines,turn=>lineKeys(turn.text),random):lines[Math.floor(random()*lines.length)];
 }

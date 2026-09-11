@@ -1,3 +1,5 @@
+import {lineKeys} from './variety.js';
+import {expandedLyrics} from './expanded-dialogue.js';
 import {surrealExchanges,surrealConclusions} from './surreal-dialogue.js';
 // Ordered replies. Each number identifies the speaking face: blue, yellow, pink.
 export const exchanges = [
@@ -27,14 +29,17 @@ export const lyrics = {
   7: ['We are still here under the noise','Who will remember the shape of us','Let the whole world hum through me','Nothing to solve and nowhere to go','Even the dark has room for music','I can feel you listening to me','We make a little light by singing','Maybe this moment is all we need'],
   8: ['We are the little voices inside the light','Nobody knows but we can sing it anyway','Let all the scattered pieces find their way','I do not know why this feels beautiful','Stay with the sound until the dark softens','We have a little time to be together','All of our colors are learning to sing','Maybe being here is enough for this moment']
 };
-export function chooseLyrics(length, random=Math.random){
-  const choices=lyrics[length];
+export function chooseLyrics(length, random=Math.random,voice=0,history){
+  const choices=(expandedLyrics[voice]??lyrics)[length];
   if(!choices)throw new Error('Unsupported melody length');
-  return choices[Math.floor(random()*choices.length)].split(' ');
+  const phrase=history?history.pick(choices,lineKeys,random):choices[Math.floor(random()*choices.length)];
+  history?.record(lineKeys(phrase));
+  return phrase.split(' ');
 }
 
 // Explicit pronunciation for the lyric bank keeps silent vowels from adding beats.
 const sungWords=Object.fromEntries([
+  'with-in','side-ways','soft-ly',
   'to-geth-er','noth-ing','lit-tle','un-til','si-lence','shad-ows','a-long',
   'lis-ten-ing','mo-ment','ver-y','gen-tly','some-thing','beau-ti-ful',
   'be-tween','may-be','be-longs','cur-rent','com-ing','no-where','un-der',

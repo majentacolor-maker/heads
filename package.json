@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check dist/cast.js && node --check dist/cast-dialogue.js && node --check dist/voice-variants.js && node --check dist/surreal-dialogue.js && node --check dist/blue-phonemes.js && node --check dist/blue-singing-data.js && node --check dist/blue-speech.js && node --check dist/blue-speech-data.js && node --check dist/conversation.js && node --check dist/export-plan.js && node --check dist/export-video.js && node --check dist/app.js && node --check dist/music.js && node --check dist/dialogue.js && node --check dist/melodies.js && node --check server.mjs",
+    "check": "node --check dist/variety.js && node --check dist/expanded-dialogue.js && node --check dist/cast.js && node --check dist/cast-dialogue.js && node --check dist/voice-variants.js && node --check dist/surreal-dialogue.js && node --check dist/blue-phonemes.js && node --check dist/blue-singing-data.js && node --check dist/blue-speech.js && node --check dist/blue-speech-data.js && node --check dist/conversation.js && node --check dist/export-plan.js && node --check dist/export-video.js && node --check dist/app.js && node --check dist/music.js && node --check dist/dialogue.js && node --check dist/melodies.js && node --check server.mjs",
     "test": "node --test tests/*.test.mjs",
     "voices": "node scripts/build-blue-speech.mjs",
     "singing": "node scripts/build-blue-singing.mjs"

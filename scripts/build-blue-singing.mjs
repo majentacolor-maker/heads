@@ -1,3 +1,4 @@
+import {expandedLyrics} from '../dist/expanded-dialogue.js';
 import init from '@echogarden/espeak-ng-emscripten';
 import {writeFile,mkdir} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
@@ -5,7 +6,7 @@ import {lyrics,singingSyllables} from '../dist/conversation.js';
 const module=await init(),voice=new module.eSpeakNGWorker(),rate=22050;
 voice.set_voice('en-us');voice.set_rate(155);voice.set_pitch(45);voice.set_range(0);
 const directory=new URL('../dist/blue-speech/',import.meta.url);await mkdir(directory,{recursive:true});
-const words=[...new Set(Object.values(lyrics).flat().flatMap(line=>line.toLowerCase().split(' ')))],manifest={};
+const words=[...new Set([...Object.values(lyrics).flat(),...Object.values(expandedLyrics).flatMap(bank=>Object.values(bank).flat())].flatMap(line=>line.toLowerCase().split(' ')))],manifest={};
 const vowelPattern=/[aeiouyᵻæɑɐɒɔəɚɛɜɝɞɪɨʉʊʌœøɶɤɯ]/;
 function pitchMarks(pcm,start,end){
   const lo=Math.round(start*rate),hi=Math.min(pcm.length,Math.round(end*rate));

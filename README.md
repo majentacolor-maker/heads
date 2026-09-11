@@ -2,11 +2,13 @@
 
 Run `npm start`, then open http://127.0.0.1:4173.
 
-Click WAKE. The three heads speak scripted thoughts, laugh, and sing. Around a minute later, one gives a closing statement from 1,000 options, all three laugh, and playback ends. Subtitles and mouth frames follow playback. No accounts or API keys.
+Click WAKE. The three heads speak scripted thoughts, laugh, and sing. Around a minute later, one gives a closing statement from 3,022 options, all three laugh, and playback ends. Subtitles and mouth frames follow playback. No accounts or API keys.
 
-WAKE starts autonomous playback. SLEEP stops it. Space toggles sleep. Hidden tabs sleep automatically.
+Each page load selects three of nine faces. REFRESH CAST changes the trio; WAKE starts a new conversation with the current cast. SLEEP stops it. Space toggles sleep. Hidden tabs sleep automatically.
 
-`dist/face.png`, `dist/yellow.png`, and `dist/pink.png` are the supplied faces. Their matching `-frames.png` sheets use a 2×2 grid: talking, laughing, singing, and the character’s scream, sigh, or giggle. Asset prompts are recorded in `asset-prompts.md`.
+The opening speaker is chosen from the least-used voices, with random ties. Selection favors unused dialogue ideas, then the least recently used, while preserving connected replies. This history lasts until the page reloads. Melody and lyric choices also favor unused options; exports use the same selection rules within each recording.
+
+`dist/faces/` contains the nine supplied faces and matching four-frame reaction sheets. Voice/image mappings are in `dist/cast.js`; image prompts are in `scripts/face-prompts.json`.
 
 Check with `npm run check && npm test`.
 
@@ -14,7 +16,7 @@ Blue speaks recognizable words using [eSpeak NG](https://github.com/espeak-ng/es
 
 Singing uses C natural minor with random solos, duets, and trios. Laughter can overlap across the same ensembles. Yellow’s sample rate and bit depth rise with vocal pitch.
 
-Dialogue: 1,200 blue lines, 1,120 yellow, 1,120 pink; 180 linked exchanges and 1,000 endings. Surreal scenes explore these fictional artificial minds arriving in an unfamiliar reality. Personality-specific continuations expand the authored observations. Melodies: 101 phrases, each 5–8 notes, with stored rhythms and minor-scale harmony.
+Dialogue: 10,924 unique spoken lines and replies, 3,022 endings, and 224 lyric phrases. Each of the six newer personalities has 1,224 spoken lines (including its connected replies), 336 endings, and 32 lyrics. The new banks combine 60 topic-specific observations per character with authored continuations, following the original dialogue structure. The song leader chooses its personality’s lyrics, shared by all singers. Melodies: 101 phrases of 5–8 notes.
 
 Each automatic turn has a 20% chance of a character reaction, 22% laughter, 15% singing, and 43% speech. Reactions are blue’s low jittering scream, yellow’s unpitched exhale, or pink’s rapid high giggle. Pending dialogue resumes on the next speech turn. Pink slides between pitches; yellow has no output filter, with 1–3 bit decimation and speech pitches down to 22 Hz.
 

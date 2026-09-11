@@ -16,8 +16,10 @@ const module=await init(),voice=new module.eSpeakNGWorker(),rate=22050;
 voice.set_voice('en-us');voice.set_rate(155);voice.set_pitch(22);voice.set_range(0);
 const directory=new URL('../dist/blue-speech/',import.meta.url);await mkdir(directory,{recursive:true});
 const manifest={};
+let generated=0;
 for(const text of texts){
   if(blueSpeechData[text]&&!timingsOnly){manifest[text]=blueSpeechData[text];continue;}
+  if(++generated%100===0)console.log('Generating speech '+generated+' / '+texts.length);
   const chunks=[],events=[];
   voice.synthesize_and_get_phonemes(text,(samples,markers)=>{if(samples?.length)chunks.push(Int16Array.from(samples));events.push(...markers)});
   const length=chunks.reduce((sum,chunk)=>sum+chunk.length,0),pcm=new Float32Array(length);

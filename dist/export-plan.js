@@ -1,3 +1,4 @@
+import {createVariety,lineKeys,openingVoice} from './variety.js';
 import {vowelCode} from './music.js';
 import {blueSpeechData} from './blue-speech-data.js';
 import {speechWalk,speechTime,syllableMouths} from './blue-phonemes.js';
@@ -7,10 +8,11 @@ import {voiceSyllables,voiceLaugh} from './voice-variants.js';
 export const EXPORT_DURATION=60;
 export function makeExportPlan(random=Math.random,cast=originalCast){
   validateCast(cast);
+  const history=createVariety(),firstVoice=openingVoice(cast,history,random);
   const candidates=scenesForCast(cast).filter(turns=>new Set(turns.map(turn=>turn.voice)).size===3);
   const tones=[],captions=[],dialogue=[],scenes=[];let cursor=.7,lastScene=-1;
   function speak(turn){
-    const {voice,text}=turn,turnIndex=dialogue.length;dialogue.push(turn);
+    const {voice,text}=turn,turnIndex=dialogue.length;dialogue.push(turn);history.record(['voice:'+voice,...lineKeys(text)]);
     if(characters[voice].phonetic){
       const clip=blueSpeechData[text];
       if(!clip)throw new Error('Blue speech is unavailable for this line.');
@@ -34,13 +36,13 @@ export function makeExportPlan(random=Math.random,cast=originalCast){
   }
   while(cursor<42){
     const eligible=candidates.map((turns,index)=>({turns,index})).filter(({turns,index})=>
-      index!==lastScene&&turns[0].voice!==dialogue.at(-1)?.voice&&
+      index!==lastScene&&(lastScene!==-1||turns[0].voice===firstVoice)&&turns[0].voice!==dialogue.at(-1)?.voice&&
       turns.every((turn,i)=>i===0||turn.voice!==turns[i-1].voice));
-    const scene=eligible[Math.floor(random()*eligible.length)].index;
+    const scene=history.pick(eligible,entry=>entry.turns.flatMap(turn=>lineKeys(turn.text)),random).index;
     lastScene=scene;scenes.push(scene);
     for(const turn of candidates[scene])speak(turn);
   }
-  const conclusion=conclusionForCast(cast,dialogue.at(-1)?.voice,random);speak(conclusion);
+  const conclusion=conclusionForCast(cast,dialogue.at(-1)?.voice,random,history);speak(conclusion);
   const laughter=cast.map(voice=>voiceLaugh(voice,random));
   const laughDuration=Math.max(...laughter.map((phrase,part)=>part*.055+phrase.duration));
   const laughAt=EXPORT_DURATION-.8-laughDuration;
