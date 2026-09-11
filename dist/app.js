@@ -277,8 +277,6 @@ async function wake(kind='talk'){
     if(token!==run||exportController)return;
     if(!awake){
       cancel();
-      cast=chooseCast(Math.random,cast);castScenes=scenesForCast(cast);
-      mountCast(document.querySelector('.heads'),cast);active=cast[0];
       replyQueue=[];lastExchange=-1;lastMelody=-1;
       lastAction=null;lastSpeaker=-1;lastLead=-1;
       heads.forEach(head=>head.lastLine=-1);visibleHeads().forEach(head=>$(head.id+'Subtitle').textContent='');
@@ -296,6 +294,11 @@ function finishConversation(){
 function sleep(){replyQueue=[];awake=false;closing=false;closeAt=Infinity;cancel();master?.gain.cancelScheduledValues(ctx.currentTime);visibleHeads().forEach(h=>$(h.id+'Subtitle').textContent='');$('power').textContent='WAKE';$('power').setAttribute('aria-pressed','false');document.body.classList.remove('awake')}
 function toggle(){if(!exportController)return awake?sleep():wake()}
 $('power').onclick=toggle;
+$('refreshCast').onclick=()=>{
+  if(exportController)return;
+  sleep();cast=chooseCast(Math.random,cast);castScenes=scenesForCast(cast);
+  mountCast(document.querySelector('.heads'),cast);active=cast[0];
+};
 document.addEventListener('keydown',e=>{if(e.repeat||e.ctrlKey||e.metaKey||e.altKey||['BUTTON','SUMMARY','A','INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.code==='Space'){e.preventDefault();toggle()}});
 document.addEventListener('visibilitychange',()=>{if(document.hidden){if(exportController)exportController.abort();if(awake)sleep()}});
 if(document.modelContext?.registerTool){try{Promise.resolve(document.modelContext.registerTool({name:'sleep_head',description:'Stop the head and its audio.',inputSchema:{type:'object',properties:{},additionalProperties:false},annotations:{readOnlyHint:false},execute(input){if(!input||typeof input!=='object'||Object.keys(input).length)throw new Error('Expected an empty object');sleep();return{awake:false}}})).catch(()=>{})}catch{}}
@@ -320,12 +323,12 @@ $('export').onclick=async()=>{
   if(exportController){exportController.abort();return}
   if(!mp4Mime()){$('exportStatus').textContent='MP4 export needs a browser with MP4 recording, such as current Safari or Chrome.';return}
   sleep();exportController=new AbortController();const signal=exportController.signal;let completed=false;
-  $('power').disabled=true;$('export').textContent='CANCEL';$('exportProgress').hidden=false;$('exportProgress').value=0;$('exportStatus').textContent='Keep this tab open while recording.';
+  $('power').disabled=true;$('refreshCast').disabled=true;$('export').textContent='CANCEL';$('exportProgress').hidden=false;$('exportProgress').value=0;$('exportStatus').textContent='Keep this tab open while recording.';
   try{
     await audio();
     await exportVideo({cast,context:ctx,renderAudio:renderExportAudio,stop:sleep,signal,onProgress:percent=>{$('exportProgress').value=percent}});
     completed=true;
     $('exportStatus').textContent='';
   }catch(error){$('exportStatus').textContent=error.name==='AbortError'?'Export cancelled.':error.message;}
-  finally{exportController=null;if(completed)finishConversation();else sleep();$('power').disabled=false;$('export').textContent='EXPORT MP4';$('exportProgress').hidden=true;}
+  finally{exportController=null;if(completed)finishConversation();else sleep();$('power').disabled=false;$('refreshCast').disabled=false;$('export').textContent='EXPORT MP4';$('exportProgress').hidden=true;}
 };

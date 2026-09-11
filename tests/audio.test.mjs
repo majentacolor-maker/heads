@@ -309,7 +309,7 @@ test('yellow breath ignores pitch and glide settings',async()=>{
   assert.deepEqual(h.buffers.at(-1),low);
 });
 
-test('WAKE redraws the cast, resets conversation state, and exports that cast',async()=>{
+test('WAKE keeps the cast; REFRESH CAST stops playback, redraws it, and exports that cast',async()=>{
   const h=harness();
   h.context.chooseCast=(random,previous)=>chooseCast(()=>.4,previous);
   h.context.mountCast=(_root,cast)=>{h.context.mountedCast=[...cast]};
@@ -321,10 +321,16 @@ test('WAKE redraws the cast, resets conversation state, and exports that cast',a
   let previous=Array.from(vm.runInContext('cast',h.context));
   for(let i=0;i<4;i++){
     await h.elements.get('power').onclick();
+    assert.deepEqual(Array.from(vm.runInContext('cast',h.context)),previous);
+    await h.elements.get('refreshCast').onclick();
+    assert.equal(vm.runInContext('awake',h.context),false);
+    assert.equal(h.pending.size,0);
     const cast=Array.from(vm.runInContext('cast',h.context));
     assert.equal(cast.length,3);assert.equal(new Set(cast).size,3);
     assert.notDeepEqual([...cast].sort(),[...previous].sort());
     assert.deepEqual(h.context.mountedCast,cast);
+    await h.elements.get('power').onclick();
+    assert.deepEqual(Array.from(vm.runInContext('cast',h.context)),cast);
     assert(vm.runInContext('castScenes.every(scene=>scene.every(turn=>cast.includes(turn.voice)))',h.context));
     assert.equal(h.elements.get('power').textContent,'SLEEP');
     await h.elements.get('power').onclick();
@@ -333,7 +339,12 @@ test('WAKE redraws the cast, resets conversation state, and exports that cast',a
   }
   h.context.AbortController=AbortController;h.context.mp4Mime=()=> 'video/mp4';
   let exported;
-  h.context.exportVideo=async options=>{exported=[...options.cast]};
+  h.context.exportVideo=async options=>{
+    exported=[...options.cast];
+    assert.equal(h.elements.get('refreshCast').disabled,true);
+    await h.elements.get('refreshCast').onclick();
+    assert.deepEqual(Array.from(vm.runInContext('cast',h.context)),exported);
+  };
   await h.elements.get('export').onclick();
   assert.deepEqual(exported,previous);
   assert.deepEqual(Array.from(vm.runInContext('cast',h.context)),previous);
