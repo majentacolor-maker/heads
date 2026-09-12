@@ -77,10 +77,10 @@ test('sleep during sung-word loading prevents any late audio or captions',async(
   assert.equal(h.elements.get('power').textContent,'WAKE');
 });
 
-test('automatic choices use 20% reactions, 22% laughter, 15% singing, and 43% speech',()=>{
+test('automatic choices use 25% reactions, 28% laughter, 22% singing, and 25% speech',()=>{
   const counts={reaction:0,laugh:0,sing:0,talk:0};
   for(let i=0;i<10000;i++)counts[automaticAction(()=>i/10000)]++;
-  assert.deepEqual(counts,{reaction:2000,laugh:2200,sing:1500,talk:4300});
+  assert.deepEqual(counts,{reaction:2500,laugh:2800,sing:2200,talk:2500});
 });
 test('automatic actions exclude the previous special action without random retries',()=>{
   for(const previous of ['reaction','laugh','sing'])for(let i=0;i<1000;i++){

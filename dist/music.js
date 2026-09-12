@@ -32,7 +32,7 @@ export function ensemble(lead, random = Math.random) {
 }
 export function automaticAction(random = Math.random, previous = null) {
   const blocked=previous==='giggle'?['reaction','laugh']:[previous];
-  const choices=[['reaction',20],['laugh',22],['sing',15],['talk',43]]
+  const choices=[['reaction',25],['laugh',28],['sing',22],['talk',25]]
     .filter(([kind])=>kind==='talk'||!blocked.includes(kind));
   const roll=random(),total=choices.reduce((sum,[,weight])=>sum+weight,0);
   let threshold=0;
