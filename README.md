@@ -1,5 +1,7 @@
 # HEADS
 
+heads.computer is live
+
 Run `npm start`, then open http://127.0.0.1:4173.
 
 Click WAKE. The three heads speak scripted thoughts, laugh, and sing. Around a minute later, one gives a closing statement from 3,022 options, all three laugh, and playback ends. Subtitles and mouth frames follow playback. No accounts or API keys.
